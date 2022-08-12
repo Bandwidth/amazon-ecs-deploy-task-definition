@@ -20,6 +20,71 @@ const IGNORED_TASK_DEFINITION_ATTRIBUTES = [
   'registeredBy'
 ];
 
+async function waitForServiceStability(ecs, service, clusterName, waitForMinutes) {
+  core.debug(`Waiting for the service to become stable. Will wait for ${waitForMinutes} minutes`);
+  const maxAttempts = (waitForMinutes * 60) / WAIT_DEFAULT_DELAY_SEC;
+  await ecs.waitFor('servicesStable', {
+    services: [service],
+    cluster: clusterName,
+    $waiter: {
+      delay: WAIT_DEFAULT_DELAY_SEC,
+      maxAttempts: maxAttempts
+    }
+  }).promise();
+}
+
+async function createEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy) {
+  let params;
+
+  if (enableCodeDeploy) {
+    params = {
+      serviceName: service,
+      cluster: clusterName,
+      deploymentController: {
+        type: 'CODE_DEPLOY'
+      },
+      desiredCount: desiredCount,
+      enableExecuteCommand: enableExecuteCommand,
+      healthCheckGracePeriodSeconds: healthCheckGracePeriodSeconds,
+      launchType: 'FARGATE',
+      propagateTags: propagateTags,
+      taskDefinition: taskDefArn,
+    };
+  } else {
+    params = {
+      serviceName: service,
+      cluster: clusterName,
+      deploymentConfiguration: {
+        deploymentCircuitBreaker: {
+          enable: true,
+          rollback: true,
+        },
+        minimumHealthyPercent: minimumHealthyPercentage,
+      },
+      deploymentController: {
+        type: 'ECS',
+      },
+      desiredCount: desiredCount,
+      enableExecuteCommand: enableExecuteCommand,
+      healthCheckGracePeriodSeconds: healthCheckGracePeriodSeconds,
+      launchType: 'FARGATE',
+      propagateTags: propagateTags,
+      taskDefinition: taskDefArn,
+    };
+  }
+
+  await ecs.createService(params, function(err, data) {
+    if (err) console.log(err, err.stack); // an error occurred
+    else     console.log(data);           // successful response
+  });
+
+  if (waitForService && waitForService.toLowerCase() === 'true') {
+    await waitForServiceStability(ecs, service, clusterName, waitForMinutes);
+  } else {
+    core.debug('Not waiting for the service to become stable');
+  }
+}
+
 // Deploy to a service that uses the 'ECS' deployment controller
 async function updateEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, forceNewDeployment) {
   core.debug('Updating the service');
@@ -34,18 +99,8 @@ async function updateEcsService(ecs, clusterName, service, taskDefArn, waitForSe
 
   core.info(`Deployment started. Watch this deployment's progress in the Amazon ECS console: https://${consoleHostname}/ecs/home?region=${aws.config.region}#/clusters/${clusterName}/services/${service}/events`);
 
-  // Wait for service stability
   if (waitForService && waitForService.toLowerCase() === 'true') {
-    core.debug(`Waiting for the service to become stable. Will wait for ${waitForMinutes} minutes`);
-    const maxAttempts = (waitForMinutes * 60) / WAIT_DEFAULT_DELAY_SEC;
-    await ecs.waitFor('servicesStable', {
-      services: [service],
-      cluster: clusterName,
-      $waiter: {
-        delay: WAIT_DEFAULT_DELAY_SEC,
-        maxAttempts: maxAttempts
-      }
-    }).promise();
+    await waitForServiceStability(ecs, service, clusterName, waitForMinutes);
   } else {
     core.debug('Not waiting for the service to become stable');
   }
@@ -247,6 +302,20 @@ async function createCodeDeployDeployment(codedeploy, clusterName, service, task
   }
 }
 
+async function describeServiceIfExists(ecs, service, clusterName, errorIfDoesntExist){
+  const describeResponse = await ecs.describeServices({
+    services: [service],
+    cluster: clusterName
+  }).promise();
+
+  if (errorIfDoesntExist && describeResponse.failures && describeResponse.failures.length > 0) {
+    const failure = describeResponse.failures[0];
+    throw new Error(`${failure.arn} is ${failure.reason}`);
+  }
+
+  return describeResponse.services[0];
+}
+
 async function run() {
   try {
     const ecs = new aws.ECS({
@@ -258,7 +327,19 @@ async function run() {
 
     // Get inputs
     const taskDefinitionFile = core.getInput('task-definition', { required: true });
-    const service = core.getInput('service', { required: false });
+
+    const service = core.getInput('service-name', { required: false });
+    const serviceDesiredCount = core.getInput('service-desired-count', { required: false });
+    const serviceEnableExecuteCommandInput = core.getInput('service-enable-execute-command', { required: false });
+    const serviceEnableExecuteCommand = serviceEnableExecuteCommandInput.toLowerCase() === 'true';
+    const serviceHealthCheckGracePeriodSeconds = core.getInput('service-health-check-grace-period-seconds', { required: false });
+    const servicePropagateTags = core.getInput('service-propagate-tags', { required: false });
+    const serviceMinHealthyPercentage = core.getInput('service-min-healthy-percentage', { required: false });
+
+    const newServiceUseCodeDeployInput = core.getInput('new-service-use-codedeploy', { required: false });
+    const newServiceUseCodeDeploy = newServiceUseCodeDeployInput.toLowerCase() === 'true';
+
+
     const cluster = core.getInput('cluster', { required: false });
     const waitForService = core.getInput('wait-for-service-stability', { required: false });
     let waitForMinutes = parseInt(core.getInput('wait-for-minutes', { required: false })) || 30;
@@ -292,19 +373,13 @@ async function run() {
     if (service) {
       const clusterName = cluster ? cluster : 'default';
 
-      // Determine the deployment controller
-      const describeResponse = await ecs.describeServices({
-        services: [service],
-        cluster: clusterName
-      }).promise();
+      let serviceResponse = await describeServiceIfExists(ecs, service, clusterName, false)
 
-      if (describeResponse.failures && describeResponse.failures.length > 0) {
-        const failure = describeResponse.failures[0];
-        throw new Error(`${failure.arn} is ${failure.reason}`);
-      }
-
-      const serviceResponse = describeResponse.services[0];
-      if (serviceResponse.status != 'ACTIVE') {
+      if (!serviceResponse) {
+        core.debug("Existing service not found. Create new service.")
+        await createEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy)
+        serviceResponse = await describeServiceIfExists(ecs, service, clusterName, true)
+      } else if (serviceResponse.status != 'ACTIVE') {
         throw new Error(`Service is ${serviceResponse.status}`);
       }
 

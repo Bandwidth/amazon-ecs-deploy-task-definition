@@ -7,9 +7,28 @@ inputs:
   task-definition:
     description: 'The path to the ECS task definition file to register'
     required: true
-  service:
-    description: 'The name of the ECS service to deploy to. The action will only register the task definition if no service is given.'
+  service-name:
+    description: 'The name of the ECS service to update/create. The action will only register the task definition if no service is given.'
     required: false
+  service-desired-count:
+    description: 'The number of tasks to create/update the service with'
+    required: false
+    default: '3'
+  service-enable-execute-command:
+    description: 'Whether to enable ECS exec on the service'
+    required: false
+    default: 'true'
+  service-health-check-grace-period-seconds:
+    description: 'The time given to a new task before health checks begin'
+    required: false
+  service-propagate-tags:
+    description: 'Where tags should be propagated from to the tasks'
+    required: false
+    default: 'TASK_DEFINITION'
+  service-min-healthy-percentage:
+    description: 'The minimum number of tasks that must remain healthy during a deployment'
+    required: false
+    default: '50'
   cluster:
     description: "The name of the ECS service's cluster.  Will default to the 'default' cluster"
     required: false
@@ -19,6 +38,10 @@ inputs:
   wait-for-minutes:
     description: 'How long to wait for the ECS service to reach stable state, in minutes (default: 30 minutes, max: 6 hours). For CodeDeploy deployments, any wait time configured in the CodeDeploy deployment group will be added to this value.'
     required: false
+  new-service-use-codedeploy:
+    description: 'Whether CodeDeploy should be used as the deployment controller. Defaults to ECS'
+    required: false
+    default: 'false'
   codedeploy-appspec:
     description: "The path to the AWS CodeDeploy AppSpec file, if the ECS service uses the CODE_DEPLOY deployment controller. Will default to 'appspec.yaml'."
     required: false
