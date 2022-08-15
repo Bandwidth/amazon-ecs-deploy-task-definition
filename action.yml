@@ -10,6 +10,9 @@ inputs:
   service:
     description: 'The name of the ECS service to deploy to. The action will only register the task definition if no service is given.'
     required: false
+  service-count:
+    description: 'Adding this as a test.'
+    required: false
   cluster:
     description: "The name of the ECS service's cluster.  Will default to the 'default' cluster"
     required: false
