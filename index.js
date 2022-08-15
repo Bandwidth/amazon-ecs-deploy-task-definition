@@ -355,7 +355,7 @@ async function run() {
     const forceNewDeployment = forceNewDeployInput.toLowerCase() === 'true';
 
     // Register the task definition
-    core.debug('Registering the task definition');
+    core.debug('Registering the task definition. I made a change');
     const taskDefPath = path.isAbsolute(taskDefinitionFile) ?
       taskDefinitionFile :
       path.join(process.env.GITHUB_WORKSPACE, taskDefinitionFile);
