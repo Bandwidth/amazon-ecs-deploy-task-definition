@@ -329,6 +329,10 @@ async function run() {
     const taskDefinitionFile = core.getInput('task-definition', { required: true });
 
     const service = core.getInput('service-name', { required: false });
+
+    core.debug(`Service Name: ${service}`);
+
+
     const serviceDesiredCount = core.getInput('service-desired-count', { required: false });
     const serviceEnableExecuteCommandInput = core.getInput('service-enable-execute-command', { required: false });
     const serviceEnableExecuteCommand = serviceEnableExecuteCommandInput.toLowerCase() === 'true';
