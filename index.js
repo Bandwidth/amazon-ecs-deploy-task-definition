@@ -351,9 +351,9 @@ async function run() {
     const newServiceUseCodeDeployInput = core.getInput('new-service-use-codedeploy', { required: false });
     const newServiceUseCodeDeploy = newServiceUseCodeDeployInput.toLowerCase() === 'true';
 
-    const codeDeployLoadBalancer = core.getInput('code-deploy-load-balancer', { required: false });
+    const codeDeployLoadBalancer = core.getInput('codedeploy-load-balancer', { required: false });
 
-    const codeDeployTargetGroupArn = core.getInput('code-deploy-target-group-arn', { required: false });
+    const codeDeployTargetGroupArn = core.getInput('codedeploy-target-group-arn', { required: false });
 
     const cluster = core.getInput('cluster', { required: false });
     const waitForService = core.getInput('wait-for-service-stability', { required: false });
