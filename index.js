@@ -33,7 +33,7 @@ async function waitForServiceStability(ecs, service, clusterName, waitForMinutes
   }).promise();
 }
 
-async function createEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy, loadBalancer, targetGroupArn) {
+async function createEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy, loadBalancer, targetGroupArn, subnets) {
   let params;
 
   if (enableCodeDeploy) {
@@ -56,7 +56,13 @@ async function createEcsService(ecs, clusterName, service, taskDefArn, waitForSe
           loadBalancerName: loadBalancer,
           targetGroupArn: targetGroupArn,
         },
-      ]
+      ],
+      networkConfiguration: {
+        awsvpcConfiguration: {
+          subnets: subnets,
+          assignPublicIp: 'DISABLED',
+        }
+      },
     };
   } else {
     params = {
@@ -347,6 +353,8 @@ async function run() {
     const serviceHealthCheckGracePeriodSeconds = parseInt(core.getInput('service-health-check-grace-period-seconds', { required: false }));
     const servicePropagateTags = core.getInput('service-propagate-tags', { required: false });
     const serviceMinHealthyPercentage = parseInt(core.getInput('service-min-healthy-percentage', { required: false }));
+    const serviceSubnets = core.getInput('service-subnets').split(',');
+
 
     const newServiceUseCodeDeployInput = core.getInput('new-service-use-codedeploy', { required: false });
     const newServiceUseCodeDeploy = newServiceUseCodeDeployInput.toLowerCase() === 'true';
@@ -391,7 +399,7 @@ async function run() {
 
       if (!serviceResponse) {
         core.debug("Existing service not found. Create new service.");
-        await createEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancer, codeDeployTargetGroupArn);
+        await createEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancer, codeDeployTargetGroupArn, serviceSubnets);
         serviceResponse = await describeServiceIfExists(ecs, service, clusterName, true);
       } else if (serviceResponse.status != 'ACTIVE') {
         throw new Error(`Service is ${serviceResponse.status}`);

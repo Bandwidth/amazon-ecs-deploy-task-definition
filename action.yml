@@ -29,6 +29,9 @@ inputs:
     description: 'The minimum number of tasks that must remain healthy during a deployment'
     required: false
     default: '50'
+  service-subnets:
+    description: 'The subnets to use for a new service'
+    required: false
   cluster:
     description: "The name of the ECS service's cluster.  Will default to the 'default' cluster"
     required: false
