@@ -51,9 +51,6 @@ async function createEcsService(ecs, clusterName, service, taskDefArn, waitForSe
       taskDefinition: taskDefArn,
       loadBalancers: [
         {
-          containerName: 'web',
-          containerPort: '8080',
-          loadBalancerName: loadBalancer,
           targetGroupArn: targetGroupArn,
         },
       ]
@@ -350,8 +347,6 @@ async function run() {
 
     const newServiceUseCodeDeployInput = core.getInput('new-service-use-codedeploy', { required: false });
     const newServiceUseCodeDeploy = newServiceUseCodeDeployInput.toLowerCase() === 'true';
-
-    const codeDeployLoadBalancer = core.getInput('codedeploy-load-balancer', { required: false });
 
     const codeDeployTargetGroupArn = core.getInput('codedeploy-target-group-arn', { required: false });
 

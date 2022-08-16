@@ -54,9 +54,6 @@ inputs:
   codedeploy-deployment-description:
     description: "A description of the deployment, if the ECS service uses the CODE_DEPLOY deployment controller."
     required: false
-  codedeploy-load-balancer:
-    description: "Name of the load balancer to use for a blue/green deploy"
-    required: false
   codedeploy-target-group-arn:
     description: "ARN of the target group"
     required: false
