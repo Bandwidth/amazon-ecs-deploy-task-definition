@@ -387,7 +387,7 @@ async function run() {
 
       if (!serviceResponse) {
         core.debug("Existing service not found. Create new service.");
-        await createEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancer, codeDeployTargetGroupArn);
+        await createEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployTargetGroupArn);
         serviceResponse = await describeServiceIfExists(ecs, service, clusterName, true);
       } else if (serviceResponse.status != 'ACTIVE') {
         throw new Error(`Service is ${serviceResponse.status}`);
