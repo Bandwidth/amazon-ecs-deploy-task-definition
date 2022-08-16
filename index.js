@@ -33,7 +33,7 @@ async function waitForServiceStability(ecs, service, clusterName, waitForMinutes
   }).promise();
 }
 
-async function createEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy) {
+async function createEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy, loadBalancer, targetGroupArn) {
   let params;
 
   if (enableCodeDeploy) {
@@ -49,6 +49,14 @@ async function createEcsService(ecs, clusterName, service, taskDefArn, waitForSe
       launchType: 'FARGATE',
       propagateTags: propagateTags,
       taskDefinition: taskDefArn,
+      loadBalancers: [
+        {
+          containerName: 'web',
+          containerPort: '8080',
+          loadBalancerName: loadBalancer,
+          targetGroupArn: targetGroupArn,
+        },
+      ]
     };
   } else {
     params = {
@@ -343,6 +351,9 @@ async function run() {
     const newServiceUseCodeDeployInput = core.getInput('new-service-use-codedeploy', { required: false });
     const newServiceUseCodeDeploy = newServiceUseCodeDeployInput.toLowerCase() === 'true';
 
+    const codeDeployLoadBalancer = core.getInput('code-deploy-load-balancer', { required: false });
+
+    const codeDeployTargetGroupArn = core.getInput('code-deploy-target-group-arn', { required: false });
 
     const cluster = core.getInput('cluster', { required: false });
     const waitForService = core.getInput('wait-for-service-stability', { required: false });
@@ -355,7 +366,7 @@ async function run() {
     const forceNewDeployment = forceNewDeployInput.toLowerCase() === 'true';
 
     // Register the task definition
-    core.debug('Registering the task definition. I made a change');
+    core.debug('Registering the task definition');
     const taskDefPath = path.isAbsolute(taskDefinitionFile) ?
       taskDefinitionFile :
       path.join(process.env.GITHUB_WORKSPACE, taskDefinitionFile);
@@ -381,7 +392,7 @@ async function run() {
 
       if (!serviceResponse) {
         core.debug("Existing service not found. Create new service.");
-        await createEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy);
+        await createEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancer, codeDeployTargetGroupArn);
         serviceResponse = await describeServiceIfExists(ecs, service, clusterName, true);
       } else if (serviceResponse.status != 'ACTIVE') {
         throw new Error(`Service is ${serviceResponse.status}`);
