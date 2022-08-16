@@ -51,6 +51,8 @@ async function createEcsService(ecs, clusterName, service, taskDefArn, waitForSe
       taskDefinition: taskDefArn,
       loadBalancers: [
         {
+          containerName: 'web',
+          containerPort: '8080',
           targetGroupArn: targetGroupArn,
         },
       ]
