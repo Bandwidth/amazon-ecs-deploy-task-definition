@@ -272,7 +272,7 @@ async function createCodeDeployDeployment(codedeploy, clusterName, service, task
   };
   // If it hasn't been set then we don't even want to pass it to the api call to maintain previous behaviour.
   if (codeDeployDescription) {
-    deploymentParams.description = codeDeployDescription
+    deploymentParams.description = codeDeployDescription;
   }
   const createDeployResponse = await codedeploy.createDeployment(deploymentParams).promise();
   core.setOutput('codedeploy-deployment-id', createDeployResponse.deploymentId);
@@ -377,12 +377,12 @@ async function run() {
     if (service) {
       const clusterName = cluster ? cluster : 'default';
 
-      let serviceResponse = await describeServiceIfExists(ecs, service, clusterName, false)
+      let serviceResponse = await describeServiceIfExists(ecs, service, clusterName, false);
 
       if (!serviceResponse) {
-        core.debug("Existing service not found. Create new service.")
-        await createEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy)
-        serviceResponse = await describeServiceIfExists(ecs, service, clusterName, true)
+        core.debug("Existing service not found. Create new service.");
+        await createEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy);
+        serviceResponse = await describeServiceIfExists(ecs, service, clusterName, true);
       } else if (serviceResponse.status != 'ACTIVE') {
         throw new Error(`Service is ${serviceResponse.status}`);
       }

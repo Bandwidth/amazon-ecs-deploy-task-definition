@@ -1,5 +1,5 @@
 {
-  "name": "aws-actions-amazon-ecs-deploy-task-definition",
+  "name": "bandwidth-amazon-ecs-deploy-task-definition",
   "version": "1.4.9",
   "description": "Registers an Amazon ECS task definition and deploys it to an ECS service.",
   "main": "index.js",
@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/aws-actions/amazon-ecs-deploy-task-definition.git"
+    "url": "git+https://github.com/Bandwidth/amazon-ecs-deploy-task-definition.git"
   },
   "keywords": [
     "AWS",
@@ -18,12 +18,12 @@
     "Actions",
     "JavaScript"
   ],
-  "author": "AWS",
+  "author": "Bandwidth",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/aws-actions/amazon-ecs-deploy-task-definition/issues"
+    "url": "https://github.com/Bandwidth/amazon-ecs-deploy-task-definition/issues"
   },
-  "homepage": "https://github.com/aws-actions/amazon-ecs-deploy-task-definition#readme",
+  "homepage": "https://github.com/Bandwidth/amazon-ecs-deploy-task-definition#readme",
   "dependencies": {
     "@actions/core": "^1.6.0",
     "aws-sdk": "^2.1190.0",
