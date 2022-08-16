@@ -333,12 +333,12 @@ async function run() {
     core.debug(`Service Name: ${service}`);
 
 
-    const serviceDesiredCount = core.getInput('service-desired-count', { required: false });
+    const serviceDesiredCount = parseInt(core.getInput('service-desired-count', { required: false }));
     const serviceEnableExecuteCommandInput = core.getInput('service-enable-execute-command', { required: false });
     const serviceEnableExecuteCommand = serviceEnableExecuteCommandInput.toLowerCase() === 'true';
-    const serviceHealthCheckGracePeriodSeconds = core.getInput('service-health-check-grace-period-seconds', { required: false });
+    const serviceHealthCheckGracePeriodSeconds = parseInt(core.getInput('service-health-check-grace-period-seconds', { required: false }));
     const servicePropagateTags = core.getInput('service-propagate-tags', { required: false });
-    const serviceMinHealthyPercentage = core.getInput('service-min-healthy-percentage', { required: false });
+    const serviceMinHealthyPercentage = parseInt(core.getInput('service-min-healthy-percentage', { required: false }));
 
     const newServiceUseCodeDeployInput = core.getInput('new-service-use-codedeploy', { required: false });
     const newServiceUseCodeDeploy = newServiceUseCodeDeployInput.toLowerCase() === 'true';
