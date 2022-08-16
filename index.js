@@ -53,6 +53,7 @@ async function createEcsService(ecs, clusterName, service, taskDefArn, waitForSe
         {
           containerName: 'web',
           containerPort: '8080',
+          loadBalancer: loadBalancer,
           targetGroupArn: targetGroupArn,
         },
       ]
@@ -351,6 +352,7 @@ async function run() {
     const newServiceUseCodeDeploy = newServiceUseCodeDeployInput.toLowerCase() === 'true';
 
     const codeDeployTargetGroupArn = core.getInput('codedeploy-target-group-arn', { required: false });
+    const codeDeployLoadBalancer = core.getInput('codedeploy-load-balancer', { required: false });
 
     const cluster = core.getInput('cluster', { required: false });
     const waitForService = core.getInput('wait-for-service-stability', { required: false });
@@ -389,7 +391,7 @@ async function run() {
 
       if (!serviceResponse) {
         core.debug("Existing service not found. Create new service.");
-        await createEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployTargetGroupArn);
+        await createEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancer, codeDeployTargetGroupArn);
         serviceResponse = await describeServiceIfExists(ecs, service, clusterName, true);
       } else if (serviceResponse.status != 'ACTIVE') {
         throw new Error(`Service is ${serviceResponse.status}`);
