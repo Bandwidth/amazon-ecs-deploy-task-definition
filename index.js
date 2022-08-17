@@ -34,6 +34,7 @@ async function waitForServiceStability(ecs, service, clusterName, waitForMinutes
 }
 
 async function authorizeIngressFromAnotherSecurityGroup(ec2, securityGroup, securityGroupToIngress, fromPort, toPort) {
+  core.debug("Add Ingress")
   const params = {
     GroupId: securityGroup,
     IpPermissions: [
@@ -51,13 +52,16 @@ async function authorizeIngressFromAnotherSecurityGroup(ec2, securityGroup, secu
     ]
   };
 
-  ec2.authorizeSecurityGroupIngress(params, function(err, data) {
+  return ec2.authorizeSecurityGroupIngress(params, function(err, data) {
     if (err) console.log(err, err.stack); // an error occurred
-    else     console.log(data);           // successful response
+    else {
+      core.debug(data);
+    }
   });
 }
 
 async function authorizeAllEgress(ec2, securityGroup) {
+  core.debug("Add Egress")
   const params = {
     GroupId: securityGroup,
     IpPermissions: [
@@ -73,29 +77,33 @@ async function authorizeAllEgress(ec2, securityGroup) {
       }
     ]
   };
-  ec2.authorizeSecurityGroupEgress(params, function(err, data) {
+  return ec2.authorizeSecurityGroupEgress(params, function(err, data) {
     if (err) console.log(err, err.stack); // an error occurred
-    else     console.log(data);           // successful response
+    else {
+      core.debug(data);
+    }
   });
 }
 
 async function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) {
+  core.debug("Creating Security Group")
   const params = {
     Description: sgDescription,
     GroupName: sgName,
     VpcId: vpcId
   };
 
-  ec2.createSecurityGroup(params, function(err, data) {
+  return ec2.createSecurityGroup(params, function(err, data) {
     if (err) console.log(err, err.stack);
     else {
-      console.log(data);
+      core.debug(data);
       return data.GroupId;
     }
   });
 }
 
 async function describeLoadBalancer(elbv2, loadBalancerArn) {
+  core.debug("Describe Load Balancer")
   const params = {
     LoadBalancerArns: [
       loadBalancerArn
@@ -104,54 +112,17 @@ async function describeLoadBalancer(elbv2, loadBalancerArn) {
   return elbv2.describeLoadBalancers(params, function(err, data) {
     if (err) {
       console.log(err, err.stack);
-      console.log("there was an error")
-    } // an error occurred
+    }
     else {
-      console.log(data);
-      console.log(data.LoadBalancers);
-      console.log(data.LoadBalancers[0]);
-      console.log(data.LoadBalancers[0].VpcId);
-      console.log(data.LoadBalancers.VpcId);
+      core.debug(data);
       return data.LoadBalancers[0];
-    }           // successful response
-    /*
-   data = {
-    LoadBalancers: [
-       {
-      AvailabilityZones: [
-         {
-        SubnetId: "subnet-8360a9e7",
-        ZoneName: "us-west-2a"
-       },
-         {
-        SubnetId: "subnet-b7d581c0",
-        ZoneName: "us-west-2b"
-       }
-      ],
-      CanonicalHostedZoneId: "Z2P70J7EXAMPLE",
-      CreatedTime: <Date Representation>,
-      DNSName: "my-load-balancer-424835706.us-west-2.elb.amazonaws.com",
-      LoadBalancerArn: "arn:aws:elasticloadbalancing:us-west-2:123456789012:loadbalancer/app/my-load-balancer/50dc6c495c0c9188",
-      LoadBalancerName: "my-load-balancer",
-      Scheme: "internet-facing",
-      SecurityGroups: [
-         "sg-5943793c"
-      ],
-      State: {
-       Code: "active"
-      },
-      Type: "application",
-      VpcId: "vpc-3ac0fb5f"
-     }
-    ]
-   }
-   */
+    }
   });
 }
 
 async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName) {
+  core.debug("Create Security Group for LB to Service")
   const loadBalancerInfo = await describeLoadBalancer(elbv2, loadBalancerArn);
-  console.log(loadBalancerInfo)
   const vpcId = loadBalancerInfo.VpcId;
   const loadBalancerSecurityGroup = loadBalancerInfo.SecurityGroups[0];
 
