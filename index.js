@@ -33,7 +33,7 @@ async function waitForServiceStability(ecs, service, clusterName, waitForMinutes
   });
 }
 
-async function authorizeIngressFromAnotherSecurityGroup(ec2, securityGroup, securityGroupToIngress, fromPort, toPort) {
+function authorizeIngressFromAnotherSecurityGroup(ec2, securityGroup, securityGroupToIngress, fromPort, toPort) {
   core.debug("Add Ingress")
   const params = {
     GroupId: securityGroup,
@@ -60,7 +60,7 @@ async function authorizeIngressFromAnotherSecurityGroup(ec2, securityGroup, secu
   });
 }
 
-async function authorizeAllEgress(ec2, securityGroup) {
+function authorizeAllEgress(ec2, securityGroup) {
   core.debug("Add Egress")
   const params = {
     GroupId: securityGroup,
@@ -85,7 +85,7 @@ async function authorizeAllEgress(ec2, securityGroup) {
   });
 }
 
-async function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) {
+function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) {
   core.debug("Creating Security Group")
   const params = {
     Description: sgDescription,
@@ -102,14 +102,14 @@ async function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) 
   });
 }
 
-async function describeLoadBalancer(elbv2, loadBalancerArn) {
+function describeLoadBalancer(elbv2, loadBalancerArn) {
   core.debug("Describe Load Balancer")
   const params = {
     LoadBalancerArns: [
       loadBalancerArn
     ]
   };
-  const loadBalancerInfo = await elbv2.describeLoadBalancers(params, function(err, data) {
+  return elbv2.describeLoadBalancers(params, function(err, data) {
     if (err) {
       console.log(err, err.stack);
     }
@@ -119,13 +119,11 @@ async function describeLoadBalancer(elbv2, loadBalancerArn) {
       return data.LoadBalancers[0];
     }
   });
-
-  return loadBalancerInfo;
 }
 
 async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName) {
   core.debug("Create Security Group for LB to Service")
-  const loadBalancerInfo = await describeLoadBalancer(elbv2, loadBalancerArn);
+  const loadBalancerInfo = describeLoadBalancer(elbv2, loadBalancerArn);
   const vpcId = loadBalancerInfo.VpcId;
 
   console.log(loadBalancerInfo);
@@ -137,11 +135,11 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
 
   const serviceSecurityGroup = createSecurityGroupForService(ec2, `load-balancer-to${serviceName}`, 'Load balancer to service', vpcId);
 
-  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroup, loadBalancerSecurityGroup, 8080, 8080);
-  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroup, loadBalancerSecurityGroup, 8125, 8125);
-  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroup, loadBalancerSecurityGroup, 8126, 8126);
+  authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroup, loadBalancerSecurityGroup, 8080, 8080);
+  authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroup, loadBalancerSecurityGroup, 8125, 8125);
+  authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroup, loadBalancerSecurityGroup, 8126, 8126);
 
-  await authorizeAllEgress(ec2, serviceSecurityGroup);
+  authorizeAllEgress(ec2, serviceSecurityGroup);
 }
 
 async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy, loadBalancerArn, targetGroupArn, subnets) {
