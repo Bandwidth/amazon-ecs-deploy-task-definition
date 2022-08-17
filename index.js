@@ -95,116 +95,56 @@ async function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) 
   });
 }
 
-async function describeLoadBalancer(elb, loadBalancerName) {
+async function describeLoadBalancer(elbv2, loadBalancerName) {
   const params = {
     LoadBalancerNames: [
       loadBalancerName
     ]
   };
-  elb.describeLoadBalancers(params, function(err, data) {
+  elbv2.describeLoadBalancers(params, function(err, data) {
     if (err) console.log(err, err.stack); // an error occurred
     else {
-      console.log(data.LoadBalancerDescriptions[0]);
+      console.log(data.LoadBalancers[0]);
       return data;
     }           // successful response
     /*
-    data = {
-     LoadBalancerDescriptions: [
-        {
-       AvailabilityZones: [
-          "us-west-2a"
-       ],
-       BackendServerDescriptions: [
-          {
-         InstancePort: 80,
-         PolicyNames: [
-            "my-ProxyProtocol-policy"
-         ]
-        }
-       ],
-       CanonicalHostedZoneName: "my-load-balancer-1234567890.us-west-2.elb.amazonaws.com",
-       CanonicalHostedZoneNameID: "Z3DZXE0EXAMPLE",
-       CreatedTime: <Date Representation>,
-       DNSName: "my-load-balancer-1234567890.us-west-2.elb.amazonaws.com",
-       HealthCheck: {
-        HealthyThreshold: 2,
-        Interval: 30,
-        Target: "HTTP:80/png",
-        Timeout: 3,
-        UnhealthyThreshold: 2
+   data = {
+    LoadBalancers: [
+       {
+      AvailabilityZones: [
+         {
+        SubnetId: "subnet-8360a9e7",
+        ZoneName: "us-west-2a"
        },
-       Instances: [
-          {
-         InstanceId: "i-207d9717"
-        },
-          {
-         InstanceId: "i-afefb49b"
-        }
-       ],
-       ListenerDescriptions: [
-          {
-         Listener: {
-          InstancePort: 80,
-          InstanceProtocol: "HTTP",
-          LoadBalancerPort: 80,
-          Protocol: "HTTP"
-         },
-         PolicyNames: [
-         ]
-        },
-          {
-         Listener: {
-          InstancePort: 443,
-          InstanceProtocol: "HTTPS",
-          LoadBalancerPort: 443,
-          Protocol: "HTTPS",
-          SSLCertificateId: "arn:aws:iam::123456789012:server-certificate/my-server-cert"
-         },
-         PolicyNames: [
-            "ELBSecurityPolicy-2015-03"
-         ]
-        }
-       ],
-       LoadBalancerName: "my-load-balancer",
-       Policies: {
-        AppCookieStickinessPolicies: [
-        ],
-        LBCookieStickinessPolicies: [
-           {
-          CookieExpirationPeriod: 60,
-          PolicyName: "my-duration-cookie-policy"
-         }
-        ],
-        OtherPolicies: [
-           "my-PublicKey-policy",
-           "my-authentication-policy",
-           "my-SSLNegotiation-policy",
-           "my-ProxyProtocol-policy",
-           "ELBSecurityPolicy-2015-03"
-        ]
-       },
-       Scheme: "internet-facing",
-       SecurityGroups: [
-          "sg-a61988c3"
-       ],
-       SourceSecurityGroup: {
-        GroupName: "my-elb-sg",
-        OwnerAlias: "123456789012"
-       },
-       Subnets: [
-          "subnet-15aaab61"
-       ],
-       VPCId: "vpc-a01106c2"
-      }
-     ]
-    }
-    */
+         {
+        SubnetId: "subnet-b7d581c0",
+        ZoneName: "us-west-2b"
+       }
+      ],
+      CanonicalHostedZoneId: "Z2P70J7EXAMPLE",
+      CreatedTime: <Date Representation>,
+      DNSName: "my-load-balancer-424835706.us-west-2.elb.amazonaws.com",
+      LoadBalancerArn: "arn:aws:elasticloadbalancing:us-west-2:123456789012:loadbalancer/app/my-load-balancer/50dc6c495c0c9188",
+      LoadBalancerName: "my-load-balancer",
+      Scheme: "internet-facing",
+      SecurityGroups: [
+         "sg-5943793c"
+      ],
+      State: {
+       Code: "active"
+      },
+      Type: "application",
+      VpcId: "vpc-3ac0fb5f"
+     }
+    ]
+   }
+   */
   });
 }
 
-async function createSecurityGroupForLoadBalancerToService(ec2, elb, loadBalancerName, serviceName) {
-  const loadBalancerInfo = await describeLoadBalancer(elb, loadBalancerName);
-  const vpcId = loadBalancerInfo.VPCId;
+async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerName, serviceName) {
+  const loadBalancerInfo = await describeLoadBalancer(elbv2, loadBalancerName);
+  const vpcId = loadBalancerInfo.VpcId;
   const loadBalancerSecurityGroup = loadBalancerInfo.SecurityGroups[0];
 
   const serviceSecurityGroup = createSecurityGroupForService(ec2, `load-balancer-to${serviceName}`, 'Load balancer to service', vpcId);
@@ -216,10 +156,10 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elb, loadBalance
   await authorizeAllEgress(ec2, serviceSecurityGroup);
 }
 
-async function createEcsService(ecs, elb, ec2, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy, loadBalancerName, targetGroupArn, subnets) {
+async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy, loadBalancerName, targetGroupArn, subnets) {
   let params;
 
-  await createSecurityGroupForLoadBalancerToService(ec2, elb, loadBalancerName, serviceName)
+  await createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerName, serviceName)
 
   if (enableCodeDeploy) {
     params = {
@@ -520,7 +460,7 @@ async function run() {
     const ecs = new aws.ECS({
       customUserAgent: 'amazon-ecs-deploy-task-definition-for-github-actions'
     });
-    const elb = new aws.ELB({
+    const elbv2 = new aws.ELBv2({
       customUserAgent: 'amazon-ecs-deploy-task-definition-for-github-actions'
     });
     const ec2 = new aws.EC2({
@@ -591,7 +531,7 @@ async function run() {
 
       if (!serviceResponse) {
         core.debug("Existing service not found. Create new service.");
-        await createEcsService(ecs, elb, ec2, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancer, codeDeployTargetGroupArn, serviceSubnets);
+        await createEcsService(ecs, elbv2, ec2, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancer, codeDeployTargetGroupArn, serviceSubnets);
         serviceResponse = await describeServiceIfExists(ecs, service, clusterName, true);
       } else if (serviceResponse.status != 'ACTIVE') {
         throw new Error(`Service is ${serviceResponse.status}`);
