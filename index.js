@@ -168,8 +168,8 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
   const loadBalancerInfo = await describeLoadBalancer(elbv2, loadBalancerArn);
   const vpcId = loadBalancerInfo.VpcId;
 
-  // const loadBalancerSecurityGroup = loadBalancerInfo.SecurityGroups[0];
-  const serviceSecurityGroupName = `load-balancer-to-${serviceName}-2`;
+  const loadBalancerSecurityGroup = loadBalancerInfo.SecurityGroups[0];
+  const serviceSecurityGroupName = `load-balancer-to-${serviceName}`;
   const existingSecurityGroup = await describeSecurityGroup(ec2, serviceSecurityGroupName, vpcId);
 
   if (existingSecurityGroup != null) {
@@ -177,21 +177,13 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
     return existingSecurityGroup.GroupId;
   }
 
-  if (await describeSecurityGroup(ec2, serviceSecurityGroupName, vpcId) != null) {
-    core.debug(`Security group ${serviceSecurityGroupName} exists 2`);
-  }
-
   core.debug(`Security group ${serviceSecurityGroupName} does not exist, creating new group`);
   const serviceSecurityGroupId = await createNewSecurityGroup(ec2, serviceSecurityGroupName, 'Load balancer to service', vpcId);
 
-  if (await describeSecurityGroup(ec2, serviceSecurityGroupName, vpcId) != null) {
-    core.debug(`Security group ${serviceSecurityGroupName} exists 3`);
-  }
+  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroup, 8080, 8080);
+  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroup, 8125, 8125);
+  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroup, 8126, 8126);
 
-  // await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroup, 8080, 8080);
-  // await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroup, 8125, 8125);
-  // await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroup, 8126, 8126);
-  //
   // await authorizeAllEgress(ec2, serviceSecurityGroupId);
 
   return serviceSecurityGroupId;
