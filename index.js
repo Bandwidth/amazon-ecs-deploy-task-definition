@@ -115,10 +115,20 @@ async function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) 
 async function doesSecurityGroupExist(ec2, sgName, vpcId) {
   core.debug("Checking if security group with name exists");
   const params = {
-    GroupNames: [
-      sgName,
-    ],
-    VpcId: vpcId,
+    Filters: [
+      {
+        Name: "group-name",
+        Values: [
+          sgName,
+        ]
+      },
+      {
+        Name: "vpc-id",
+        Values: [
+          vpcId,
+        ]
+      },
+    ]
   };
 
   const response = await ec2.describeSecurityGroups(params, function(err, data) {
