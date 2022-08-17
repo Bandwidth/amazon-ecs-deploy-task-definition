@@ -30,7 +30,7 @@ async function waitForServiceStability(ecs, service, clusterName, waitForMinutes
       delay: WAIT_DEFAULT_DELAY_SEC,
       maxAttempts: maxAttempts
     }
-  });
+  }).promise();
 }
 
 function authorizeIngressFromAnotherSecurityGroup(ec2, securityGroup, securityGroupToIngress, fromPort, toPort) {
@@ -102,7 +102,7 @@ function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) {
   });
 }
 
-function describeLoadBalancer(elbv2, loadBalancerArn) {
+async function describeLoadBalancer(elbv2, loadBalancerArn) {
   core.debug("Describe Load Balancer")
   const params = {
     LoadBalancerArns: [
@@ -118,12 +118,12 @@ function describeLoadBalancer(elbv2, loadBalancerArn) {
       console.log(`Before Returned: ${JSON.stringify(data.LoadBalancers[0])}`);
       return data.LoadBalancers[0];
     }
-  });
+  }).promise();
 }
 
 async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName) {
   core.debug("Create Security Group for LB to Service")
-  const loadBalancerInfo = describeLoadBalancer(elbv2, loadBalancerArn);
+  const loadBalancerInfo = await describeLoadBalancer(elbv2, loadBalancerArn);
   const vpcId = loadBalancerInfo.VpcId;
 
   console.log(loadBalancerInfo);
