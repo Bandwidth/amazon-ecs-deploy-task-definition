@@ -57,7 +57,7 @@ async function authorizeIngressFromAnotherSecurityGroup(ec2, securityGroup, secu
     else {
       core.debug(data);
     }
-  });
+  }).promise();
 }
 
 async function authorizeAllEgress(ec2, securityGroup) {
@@ -82,7 +82,7 @@ async function authorizeAllEgress(ec2, securityGroup) {
     else {
       core.debug(data);
     }
-  });
+  }).promise();
 }
 
 async function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) {
@@ -99,7 +99,7 @@ async function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) 
       core.debug(data);
       return data.GroupId;
     }
-  });
+  }).promise();
 }
 
 async function describeLoadBalancer(elbv2, loadBalancerArn) {
@@ -117,7 +117,7 @@ async function describeLoadBalancer(elbv2, loadBalancerArn) {
       core.debug(data);
       return data.LoadBalancers[0];
     }
-  });
+  }).promise();
 }
 
 async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName) {
