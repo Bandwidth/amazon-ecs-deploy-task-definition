@@ -198,7 +198,7 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
 async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy, loadBalancerArn, targetGroupArn, subnets) {
   let params;
 
-  await createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName);
+  const sgId = await createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName);
 
   if (enableCodeDeploy) {
     params = {
@@ -225,6 +225,9 @@ async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskD
         awsvpcConfiguration: {
           subnets: subnets,
           assignPublicIp: 'DISABLED',
+          securityGroups: [
+              sgId,
+          ],
         }
       },
     };
