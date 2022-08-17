@@ -195,7 +195,7 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
 async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy, loadBalancerArn, targetGroupArn, subnets) {
   let params;
 
-  await createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName)
+  await createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName);
 
   if (enableCodeDeploy) {
     params = {
@@ -497,14 +497,14 @@ async function run() {
       customUserAgent: 'amazon-ecs-deploy-task-definition-for-github-actions'
     });
     const elbv2 = new aws.ELBv2({
-      customUserAgent: 'amazon-ecs-deploy-task-definition-for-github-actions'
+      customUserAgent: 'amazon-elbv2-deploy-task-definition-for-github-actions'
     });
     const ec2 = new aws.EC2({
-      customUserAgent: 'amazon-ecs-deploy-task-definition-for-github-actions'
+      customUserAgent: 'amazon-ec2-deploy-task-definition-for-github-actions'
     });
 
     const codedeploy = new aws.CodeDeploy({
-      customUserAgent: 'amazon-ecs-deploy-task-definition-for-github-actions'
+      customUserAgent: 'amazon-codedeploy-deploy-task-definition-for-github-actions'
     });
 
     // Get inputs
