@@ -93,7 +93,7 @@ async function createNewSecurityGroup(ec2, sgName, sgDescription, vpcId) {
     VpcId: vpcId
   };
 
-  await ec2.createSecurityGroup(params, async function(err, data) {
+  const response = await ec2.createSecurityGroup(params, async function(err, data) {
     if (err) {
       console.log(err, err.stack);
       console.log(await describeSecurityGroup(ec2, sgName, vpcId));
@@ -102,6 +102,8 @@ async function createNewSecurityGroup(ec2, sgName, sgDescription, vpcId) {
       core.debug(data);
     }
   }).promise();
+
+  return response.GroupId;
 }
 
 async function describeSecurityGroup(ec2, sgName, vpcId) {
@@ -169,8 +171,7 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
   }
 
   core.debug(`Security group ${serviceSecurityGroupName} does not exist, creating new group`);
-  const securityGroup = await createNewSecurityGroup(ec2, serviceSecurityGroupName, 'Load balancer to service', vpcId);
-  const serviceSecurityGroupId = securityGroup.GroupId;
+  const serviceSecurityGroupId = await createNewSecurityGroup(ec2, serviceSecurityGroupName, 'Load balancer to service', vpcId);
 
   if (await describeSecurityGroup(ec2, serviceSecurityGroupName, vpcId) != null) {
     core.debug(`Security group ${serviceSecurityGroupName} exists 3`);
