@@ -85,8 +85,16 @@ async function authorizeAllEgress(ec2, securityGroup) {
   }).promise();
 }
 
+async function createOrUseExistingSecurityGroupForService(ec2, sgName, sgDescription, vpcId) {
+  if (await doesSecurityGroupExist(ec2, sgName)) {
+    return;
+  }
+
+  await createSecurityGroupForService(ec2, sgName, sgDescription, vpcId);
+}
+
 async function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) {
-  core.debug("Creating Security Group")
+  core.debug("Creating Security Group");
   const params = {
     Description: sgDescription,
     GroupName: sgName,
@@ -102,6 +110,28 @@ async function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) 
   }).promise();
 
   return response.GroupId;
+}
+
+async function doesSecurityGroupExist(ec2, sgName) {
+  core.debug("Checking if security group with name exists");
+  const params = {
+    GroupNames: [
+      sgName,
+    ]
+  };
+
+  const response = await ec2.describeSecurityGroups(params, function(err, data) {
+    if (err) console.log(err, err.stack);
+    else core.debug(data);
+  }).promise();
+
+  if (response.SecurityGroups[0].GroupName === sgName) {
+    core.debug(`Security group ${sgName} exists`);
+    return true;
+  }
+
+  core.debug(`Security group ${sgName} does not exist`);
+  return false;
 }
 
 async function describeLoadBalancer(elbv2, loadBalancerArn) {
@@ -130,7 +160,7 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
 
   const loadBalancerSecurityGroup = loadBalancerInfo.SecurityGroups[0];
 
-  const serviceSecurityGroup = await createSecurityGroupForService(ec2, `load-balancer-to-${serviceName}`, 'Load balancer to service', vpcId);
+  const serviceSecurityGroup = await createOrUseExistingSecurityGroupForService(ec2, `load-balancer-to-${serviceName}`, 'Load balancer to service', vpcId);
 
   await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroup, loadBalancerSecurityGroup, 8080, 8080);
   await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroup, loadBalancerSecurityGroup, 8125, 8125);
