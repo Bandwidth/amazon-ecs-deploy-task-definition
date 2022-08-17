@@ -60,6 +60,9 @@ inputs:
   codedeploy-target-group-arn:
     description: "ARN of the target group"
     required: false
+  codedeploy-load-balancer-arn:
+    description: "The ARN of the load balancer"
+    required: false
   force-new-deployment:
     description: 'Whether to force a new deployment of the service. Valid value is "true". Will default to not force a new deployment.'
     required: false

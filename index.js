@@ -95,10 +95,10 @@ async function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) 
   });
 }
 
-async function describeLoadBalancer(elbv2, loadBalancerName) {
+async function describeLoadBalancer(elbv2, loadBalancerArn) {
   const params = {
-    LoadBalancerNames: [
-      loadBalancerName
+    LoadBalancerArns: [
+      loadBalancerArn
     ]
   };
   elbv2.describeLoadBalancers(params, function(err, data) {
@@ -142,8 +142,8 @@ async function describeLoadBalancer(elbv2, loadBalancerName) {
   });
 }
 
-async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerName, serviceName) {
-  const loadBalancerInfo = await describeLoadBalancer(elbv2, loadBalancerName);
+async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName) {
+  const loadBalancerInfo = await describeLoadBalancer(elbv2, loadBalancerArn);
   const vpcId = loadBalancerInfo.VpcId;
   const loadBalancerSecurityGroup = loadBalancerInfo.SecurityGroups[0];
 
@@ -156,10 +156,10 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
   await authorizeAllEgress(ec2, serviceSecurityGroup);
 }
 
-async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy, loadBalancerName, targetGroupArn, subnets) {
+async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy, loadBalancerArn, targetGroupArn, subnets) {
   let params;
 
-  await createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerName, serviceName)
+  await createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName)
 
   if (enableCodeDeploy) {
     params = {
@@ -178,7 +178,7 @@ async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskD
         {
           containerName: 'web',
           containerPort: '8080',
-          loadBalancerName: loadBalancerName,
+          loadBalancerName: loadBalancerArn,
           targetGroupArn: targetGroupArn,
         },
       ],
@@ -492,7 +492,7 @@ async function run() {
     const newServiceUseCodeDeploy = newServiceUseCodeDeployInput.toLowerCase() === 'true';
 
     const codeDeployTargetGroupArn = core.getInput('codedeploy-target-group-arn', { required: false });
-    const codeDeployLoadBalancer = core.getInput('codedeploy-load-balancer', { required: false });
+    const codeDeployLoadBalancerArn = core.getInput('codedeploy-load-balancer-arn', { required: false });
 
     const cluster = core.getInput('cluster', { required: false });
     const waitForService = core.getInput('wait-for-service-stability', { required: false });
@@ -531,7 +531,7 @@ async function run() {
 
       if (!serviceResponse) {
         core.debug("Existing service not found. Create new service.");
-        await createEcsService(ecs, elbv2, ec2, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancer, codeDeployTargetGroupArn, serviceSubnets);
+        await createEcsService(ecs, elbv2, ec2, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, codeDeployTargetGroupArn, serviceSubnets);
         serviceResponse = await describeServiceIfExists(ecs, service, clusterName, true);
       } else if (serviceResponse.status != 'ACTIVE') {
         throw new Error(`Service is ${serviceResponse.status}`);
