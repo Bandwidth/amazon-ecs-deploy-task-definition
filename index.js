@@ -78,14 +78,14 @@ async function authorizeAllEgress(ec2, securityGroup) {
     ]
   };
   await ec2.authorizeSecurityGroupEgress(params, function(err, data) {
-    if (err) console.log(err, err.stack); // an error occurred
+    if (err) console.log(err, err.stack);
     else {
       core.debug(data);
     }
   }).promise();
 }
 
-async function createSecurityGroup(ec2, sgName, sgDescription, vpcId) {
+async function createNewSecurityGroup(ec2, sgName, sgDescription, vpcId) {
   core.debug("Creating Security Group");
   const params = {
     Description: sgDescription,
@@ -162,7 +162,7 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
   }
 
   core.debug(`Security group ${serviceSecurityGroupName} does not exist, creating new group`);
-  const securityGroup = await createSecurityGroup(ec2, serviceSecurityGroupName, 'Load balancer to service', vpcId);
+  const securityGroup = await createNewSecurityGroup(ec2, serviceSecurityGroupName, 'Load balancer to service', vpcId);
   const serviceSecurityGroupId = securityGroup.GroupId;
 
   await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroup, 8080, 8080);
