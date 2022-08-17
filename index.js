@@ -102,7 +102,10 @@ async function describeLoadBalancer(elbv2, loadBalancerArn) {
     ]
   };
   elbv2.describeLoadBalancers(params, function(err, data) {
-    if (err) console.log(err, err.stack); // an error occurred
+    if (err) {
+      console.log(err, err.stack);
+      console.log("there was an error")
+    } // an error occurred
     else {
       console.log(data);
       console.log(data.LoadBalancers);
@@ -148,6 +151,7 @@ async function describeLoadBalancer(elbv2, loadBalancerArn) {
 
 async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName) {
   const loadBalancerInfo = await describeLoadBalancer(elbv2, loadBalancerArn);
+  console.log(loadBalancerInfo)
   const vpcId = loadBalancerInfo.VpcId;
   const loadBalancerSecurityGroup = loadBalancerInfo.SecurityGroups[0];
 
