@@ -105,6 +105,10 @@ async function describeLoadBalancer(elbv2, loadBalancerArn) {
     if (err) console.log(err, err.stack); // an error occurred
     else {
       console.log(data);
+      console.log(data.LoadBalancers);
+      console.log(data.LoadBalancers[0]);
+      console.log(data.LoadBalancers[0].VpcId);
+      console.log(data.LoadBalancers.VpcId);
       return data.LoadBalancers[0];
     }           // successful response
     /*
