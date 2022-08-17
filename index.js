@@ -33,7 +33,7 @@ async function waitForServiceStability(ecs, service, clusterName, waitForMinutes
   }).promise();
 }
 
-function authorizeIngressFromAnotherSecurityGroup(ec2, securityGroup, securityGroupToIngress, fromPort, toPort) {
+async function authorizeIngressFromAnotherSecurityGroup(ec2, securityGroup, securityGroupToIngress, fromPort, toPort) {
   core.debug("Add Ingress")
   const params = {
     GroupId: securityGroup,
@@ -52,15 +52,15 @@ function authorizeIngressFromAnotherSecurityGroup(ec2, securityGroup, securityGr
     ]
   };
 
-  return ec2.authorizeSecurityGroupIngress(params, function(err, data) {
+  await ec2.authorizeSecurityGroupIngress(params, function(err, data) {
     if (err) console.log(err, err.stack); // an error occurred
     else {
       core.debug(data);
     }
-  });
+  }).promise();
 }
 
-function authorizeAllEgress(ec2, securityGroup) {
+async function authorizeAllEgress(ec2, securityGroup) {
   core.debug("Add Egress")
   const params = {
     GroupId: securityGroup,
@@ -77,15 +77,15 @@ function authorizeAllEgress(ec2, securityGroup) {
       }
     ]
   };
-  return ec2.authorizeSecurityGroupEgress(params, function(err, data) {
+  await ec2.authorizeSecurityGroupEgress(params, function(err, data) {
     if (err) console.log(err, err.stack); // an error occurred
     else {
       core.debug(data);
     }
-  });
+  }).promise();
 }
 
-function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) {
+async function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) {
   core.debug("Creating Security Group")
   const params = {
     Description: sgDescription,
@@ -93,13 +93,13 @@ function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) {
     VpcId: vpcId
   };
 
-  return ec2.createSecurityGroup(params, function(err, data) {
+  await ec2.createSecurityGroup(params, function(err, data) {
     if (err) console.log(err, err.stack);
     else {
       core.debug(data);
       return data.GroupId;
     }
-  });
+  }).promise();
 }
 
 async function describeLoadBalancer(elbv2, loadBalancerArn) {
@@ -109,41 +109,34 @@ async function describeLoadBalancer(elbv2, loadBalancerArn) {
       loadBalancerArn
     ]
   };
-  const loadBalancerInfo = await elbv2.describeLoadBalancers(params, function(err, data) {
+  const response = await elbv2.describeLoadBalancers(params, function(err, data) {
     if (err) {
       console.log(err, err.stack);
     }
     else {
-      core.debug(data.LoadBalancers[0]);
-      console.log(`Before Returned: ${JSON.stringify(data.LoadBalancers[0])}`);
-      return data.LoadBalancers[0];
+      core.debug(data);
     }
   }).promise();
 
-  console.log("In the function")
-  console.log(loadBalancerInfo)
-  return loadBalancerInfo;
+  return response.LoadBalancers[0];
 }
 
 async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName) {
   core.debug("Create Security Group for LB to Service")
-  const loadBalancerInfo = await describeLoadBalancer(elbv2, loadBalancerArn);
+  const loadBalancerInfo = describeLoadBalancer(elbv2, loadBalancerArn);
   const vpcId = loadBalancerInfo.VpcId;
 
   console.log(loadBalancerInfo);
-  // core.debug(loadBalancerInfo);
-  // console.log(loadBalancerInfo.SecurityGroups);
-  // console.log(loadBalancerInfo.SecurityGroups[0]);
 
   const loadBalancerSecurityGroup = loadBalancerInfo.SecurityGroups[0];
 
   const serviceSecurityGroup = createSecurityGroupForService(ec2, `load-balancer-to${serviceName}`, 'Load balancer to service', vpcId);
 
-  authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroup, loadBalancerSecurityGroup, 8080, 8080);
-  authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroup, loadBalancerSecurityGroup, 8125, 8125);
-  authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroup, loadBalancerSecurityGroup, 8126, 8126);
+  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroup, loadBalancerSecurityGroup, 8080, 8080);
+  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroup, loadBalancerSecurityGroup, 8125, 8125);
+  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroup, loadBalancerSecurityGroup, 8126, 8126);
 
-  authorizeAllEgress(ec2, serviceSecurityGroup);
+  await authorizeAllEgress(ec2, serviceSecurityGroup);
 }
 
 async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy, loadBalancerArn, targetGroupArn, subnets) {
