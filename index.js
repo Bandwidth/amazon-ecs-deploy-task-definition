@@ -87,19 +87,6 @@ async function authorizeAllEgress(ec2, securityGroup) {
   }).promise();
 }
 
-async function createOrUseExistingSecurityGroupForService(ec2, sgName, sgDescription, vpcId) {
-  const existingSecurityGroup = await describeSecurityGroup(ec2, sgName, vpcId);
-
-  if (existingSecurityGroup != null) {
-    core.debug(`Security group ${sgName} exists`);
-    return existingSecurityGroup.GroupId;
-  }
-
-  core.debug(`Security group ${sgName} does not exist`);
-  const securityGroup = await createSecurityGroupForService(ec2, sgName, sgDescription, vpcId);
-  return securityGroup.GroupId;
-}
-
 async function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) {
   core.debug("Creating Security Group");
   const params = {
@@ -168,18 +155,25 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
   const vpcId = loadBalancerInfo.VpcId;
 
   const loadBalancerSecurityGroup = loadBalancerInfo.SecurityGroups[0];
+  const serviceSecurityGroupName = `load-balancer-to-${serviceName}`;
+  const existingSecurityGroup = await describeSecurityGroup(ec2, serviceSecurityGroupName, vpcId);
 
-  const serviceSecurityGroup = await createOrUseExistingSecurityGroupForService(ec2, `load-balancer-to-${serviceName}`, 'Load balancer to service', vpcId);
+  if (existingSecurityGroup != null) {
+    core.debug(`Security group ${serviceSecurityGroupName} exists`);
+    return existingSecurityGroup.GroupId;
+  }
 
-  console.log(loadBalancerInfo);
-  console.log(loadBalancerInfo.SecurityGroups);
-  console.log(loadBalancerInfo.SecurityGroups[0]);
+  core.debug(`Security group ${serviceSecurityGroupName} does not exist, creating new group`);
+  const securityGroup = await createSecurityGroupForService(ec2, serviceSecurityGroupName, 'Load balancer to service', vpcId);
+  const serviceSecurityGroupId = securityGroup.GroupId;
 
-  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroup, loadBalancerSecurityGroup, 8080, 8080);
-  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroup, loadBalancerSecurityGroup, 8125, 8125);
-  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroup, loadBalancerSecurityGroup, 8126, 8126);
+  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroup, 8080, 8080);
+  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroup, 8125, 8125);
+  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroup, 8126, 8126);
 
-  await authorizeAllEgress(ec2, serviceSecurityGroup);
+  await authorizeAllEgress(ec2, serviceSecurityGroupId);
+
+  return serviceSecurityGroupId;
 }
 
 async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy, loadBalancerArn, targetGroupArn, subnets) {
