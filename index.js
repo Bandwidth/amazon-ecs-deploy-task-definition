@@ -55,7 +55,7 @@ async function authorizeIngressFromAnotherSecurityGroup(ec2, securityGroup, secu
   console.log(JSON.stringify(params));
 
   await ec2.authorizeSecurityGroupIngress(params, function(err, data) {
-    if (err) console.log(err, err.stack); // an error occurred
+    if (err) console.log(err, err.stack);
     else {
       core.debug(data);
     }
@@ -88,11 +88,16 @@ async function authorizeAllEgress(ec2, securityGroup) {
 }
 
 async function createOrUseExistingSecurityGroupForService(ec2, sgName, sgDescription, vpcId) {
-  if (await doesSecurityGroupExist(ec2, sgName, vpcId)) {
-    return;
+  const existingSecurityGroup = await describeSecurityGroup(ec2, sgName, vpcId);
+
+  if (existingSecurityGroup != null) {
+    core.debug(`Security group ${sgName} exists`);
+    return existingSecurityGroup.GroupId;
   }
 
-  await createSecurityGroupForService(ec2, sgName, sgDescription, vpcId);
+  core.debug(`Security group ${sgName} does not exist`);
+  const securityGroup = await createSecurityGroupForService(ec2, sgName, sgDescription, vpcId);
+  return securityGroup.GroupId;
 }
 
 async function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) {
@@ -103,18 +108,15 @@ async function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) 
     VpcId: vpcId
   };
 
-  const response = await ec2.createSecurityGroup(params, function(err, data) {
+  return ec2.createSecurityGroup(params, function(err, data) {
     if (err) console.log(err, err.stack);
     else {
       core.debug(data);
-      return data.GroupId;
     }
   }).promise();
-
-  return response.GroupId;
 }
 
-async function doesSecurityGroupExist(ec2, sgName, vpcId) {
+async function describeSecurityGroup(ec2, sgName, vpcId) {
   core.debug("Checking if security group with name exists");
   const params = {
     Filters: [
@@ -138,13 +140,7 @@ async function doesSecurityGroupExist(ec2, sgName, vpcId) {
     else core.debug(data);
   }).promise();
 
-  if (response.SecurityGroups[0].GroupName === sgName) {
-    core.debug(`Security group ${sgName} exists`);
-    return true;
-  }
-
-  core.debug(`Security group ${sgName} does not exist`);
-  return false;
+  return response.SecurityGroups[0];
 }
 
 async function describeLoadBalancer(elbv2, loadBalancerArn) {
