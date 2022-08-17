@@ -130,7 +130,7 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
 
   const loadBalancerSecurityGroup = loadBalancerInfo.SecurityGroups[0];
 
-  const serviceSecurityGroup = createSecurityGroupForService(ec2, `load-balancer-to${serviceName}`, 'Load balancer to service', vpcId);
+  const serviceSecurityGroup = await createSecurityGroupForService(ec2, `load-balancer-to${serviceName}`, 'Load balancer to service', vpcId);
 
   await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroup, loadBalancerSecurityGroup, 8080, 8080);
   await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroup, loadBalancerSecurityGroup, 8125, 8125);
