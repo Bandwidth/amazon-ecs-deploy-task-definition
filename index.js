@@ -93,8 +93,11 @@ async function createNewSecurityGroup(ec2, sgName, sgDescription, vpcId) {
     VpcId: vpcId
   };
 
-  return ec2.createSecurityGroup(params, function(err, data) {
-    if (err) console.log(err, err.stack);
+  return ec2.createSecurityGroup(params, async function(err, data) {
+    if (err) {
+      console.log(err, err.stack);
+      console.log(await describeSecurityGroup(ec2, sgName, vpcId));
+    }
     else {
       core.debug(data);
     }
