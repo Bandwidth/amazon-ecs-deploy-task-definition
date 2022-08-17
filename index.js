@@ -101,7 +101,7 @@ async function describeLoadBalancer(elbv2, loadBalancerArn) {
       loadBalancerArn
     ]
   };
-  elbv2.describeLoadBalancers(params, function(err, data) {
+  return elbv2.describeLoadBalancers(params, function(err, data) {
     if (err) {
       console.log(err, err.stack);
       console.log("there was an error")
