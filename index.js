@@ -115,6 +115,7 @@ async function describeLoadBalancer(elbv2, loadBalancerArn) {
     }
     else {
       core.debug(data.LoadBalancers[0]);
+      console.log(`what: ${data.LoadBalancers[0]}`);
       return data.LoadBalancers[0];
     }
   }).promise();
