@@ -123,7 +123,7 @@ async function describeLoadBalancer(elbv2, loadBalancerArn) {
 
 async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName) {
   core.debug("Create Security Group for LB to Service")
-  const loadBalancerInfo = describeLoadBalancer(elbv2, loadBalancerArn);
+  const loadBalancerInfo = await describeLoadBalancer(elbv2, loadBalancerArn);
   const vpcId = loadBalancerInfo.VpcId;
 
   console.log(loadBalancerInfo);
