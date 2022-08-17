@@ -93,17 +93,28 @@ async function createNewSecurityGroup(ec2, sgName, sgDescription, vpcId) {
     VpcId: vpcId
   };
 
-  const response = await ec2.createSecurityGroup(params, async function(err, data) {
-    if (err) {
-      console.log(err, err.stack);
-      console.log(await describeSecurityGroup(ec2, sgName, vpcId));
-    }
-    else {
-      core.debug(data);
-    }
-  }).promise();
+  try {
+    const response = await ec2.createSecurityGroup(params, async function(err, data) {
+      if (err) {
+        console.log(err, err.stack);
+      }
+      else {
+        core.debug(data);
+      }
+    }).promise();
 
-  return response.GroupId;
+    return response.GroupId;
+  } catch (err) {
+    /**
+     * There's some issue where the SDK is trying to create the security group twice. For now, just catch
+     */
+    const securityGroup = await describeSecurityGroup(ec2, sgName, vpcId);
+    if (securityGroup != null) {
+      console.log("The security group already existed. Continuing anyways")
+    } else {
+      throw err;
+    }
+  }
 }
 
 async function describeSecurityGroup(ec2, sgName, vpcId) {
