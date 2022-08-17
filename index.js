@@ -153,7 +153,7 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
   const vpcId = loadBalancerInfo.VpcId;
 
   const loadBalancerSecurityGroup = loadBalancerInfo.SecurityGroups[0];
-  const serviceSecurityGroupName = `load-balancer-to-${serviceName}-1`;
+  const serviceSecurityGroupName = `load-balancer-to-${serviceName}-2`;
   const existingSecurityGroup = await describeSecurityGroup(ec2, serviceSecurityGroupName, vpcId);
 
   if (existingSecurityGroup != null) {
