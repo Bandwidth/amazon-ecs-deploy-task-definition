@@ -64,30 +64,31 @@ async function authorizeIngressFromAnotherSecurityGroup(ec2, securityGroup, secu
   }
 }
 
-async function authorizeAllEgress(ec2, securityGroup) {
-  core.debug("Add Egress")
-  const params = {
-    GroupId: securityGroup,
-    IpPermissions: [
-      {
-        FromPort: -1,
-        IpProtocol: "tcp",
-        IpRanges: [
-          {
-            CidrIp: "0.0.0.0/0"
-          }
-        ],
-        ToPort: -1
-      }
-    ]
-  };
-  await ec2.authorizeSecurityGroupEgress(params, function(err, data) {
-    if (err) console.log(err, err.stack);
-    else {
-      core.debug(data);
-    }
-  }).promise();
-}
+// the all egress rule comes by default it seems
+// async function authorizeAllEgress(ec2, securityGroup) {
+//   core.debug("Add Egress")
+//   const params = {
+//     GroupId: securityGroup,
+//     IpPermissions: [
+//       {
+//         FromPort: -1,
+//         IpProtocol: "tcp",
+//         IpRanges: [
+//           {
+//             CidrIp: "0.0.0.0/0"
+//           }
+//         ],
+//         ToPort: -1
+//       }
+//     ]
+//   };
+//   await ec2.authorizeSecurityGroupEgress(params, function(err, data) {
+//     if (err) console.log(err, err.stack);
+//     else {
+//       core.debug(data);
+//     }
+//   }).promise();
+// }
 
 async function createNewSecurityGroup(ec2, sgName, sgDescription, vpcId) {
   core.debug("Creating Security Group");
@@ -216,7 +217,7 @@ async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskD
         {
           containerName: 'web',
           containerPort: '8080',
-          loadBalancerName: loadBalancerArn,
+          // loadBalancerName: loadBalancerArn,
           targetGroupArn: targetGroupArn,
         },
       ],
