@@ -105,7 +105,7 @@ async function describeLoadBalancer(elbv2, loadBalancerArn) {
     if (err) console.log(err, err.stack); // an error occurred
     else {
       console.log(data.LoadBalancers);
-      return data;
+      return data[0];
     }           // successful response
     /*
    data = {
