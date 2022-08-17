@@ -93,13 +93,15 @@ async function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) 
     VpcId: vpcId
   };
 
-  await ec2.createSecurityGroup(params, function(err, data) {
+  const response = await ec2.createSecurityGroup(params, function(err, data) {
     if (err) console.log(err, err.stack);
     else {
       core.debug(data);
       return data.GroupId;
     }
   }).promise();
+
+  return response.GroupId;
 }
 
 async function describeLoadBalancer(elbv2, loadBalancerArn) {
@@ -125,8 +127,6 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
   core.debug("Create Security Group for LB to Service")
   const loadBalancerInfo = await describeLoadBalancer(elbv2, loadBalancerArn);
   const vpcId = loadBalancerInfo.VpcId;
-
-  console.log(loadBalancerInfo);
 
   const loadBalancerSecurityGroup = loadBalancerInfo.SecurityGroups[0];
 
