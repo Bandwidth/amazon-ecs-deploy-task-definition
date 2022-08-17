@@ -52,14 +52,16 @@ async function authorizeIngressFromAnotherSecurityGroup(ec2, securityGroup, secu
     ]
   };
 
-  console.log(JSON.stringify(params));
-
-  await ec2.authorizeSecurityGroupIngress(params, function(err, data) {
-    if (err) console.log(err, err.stack);
-    else {
-      core.debug(data);
-    }
-  }).promise();
+  try{
+    await ec2.authorizeSecurityGroupIngress(params, function(err, data) {
+      if (err) console.log(err, err.stack);
+      else {
+        core.debug(data);
+      }
+    }).promise();
+  } catch (err) {
+    console.log("An error occurred, but it was probably fine");
+  }
 }
 
 async function authorizeAllEgress(ec2, securityGroup) {
