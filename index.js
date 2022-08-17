@@ -86,7 +86,7 @@ async function authorizeAllEgress(ec2, securityGroup) {
 }
 
 async function createOrUseExistingSecurityGroupForService(ec2, sgName, sgDescription, vpcId) {
-  if (await doesSecurityGroupExist(ec2, sgName)) {
+  if (await doesSecurityGroupExist(ec2, sgName, vpcId)) {
     return;
   }
 
@@ -112,12 +112,13 @@ async function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) 
   return response.GroupId;
 }
 
-async function doesSecurityGroupExist(ec2, sgName) {
+async function doesSecurityGroupExist(ec2, sgName, vpcId) {
   core.debug("Checking if security group with name exists");
   const params = {
     GroupNames: [
       sgName,
-    ]
+    ],
+    VpcId: vpcId,
   };
 
   const response = await ec2.describeSecurityGroups(params, function(err, data) {
