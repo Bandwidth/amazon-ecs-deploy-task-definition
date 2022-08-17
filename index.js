@@ -95,12 +95,12 @@ async function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) 
     VpcId: vpcId
   };
 
-  return ec2.createSecurityGroup(params, function(err, data) {
-    if (err) console.log(err, err.stack);
-    else {
-      core.debug(data);
-    }
-  }).promise();
+  // return ec2.createSecurityGroup(params, function(err, data) {
+  //   if (err) console.log(err, err.stack);
+  //   else {
+  //     core.debug(data);
+  //   }
+  // }).promise();
 }
 
 async function describeSecurityGroup(ec2, sgName, vpcId) {
