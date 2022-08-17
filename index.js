@@ -118,12 +118,12 @@ async function describeLoadBalancer(elbv2, loadBalancerArn) {
       console.log(`Before Returned: ${JSON.stringify(data.LoadBalancers[0])}`);
       return data.LoadBalancers[0];
     }
-  }).promise();
+  });
 }
 
 async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName) {
   core.debug("Create Security Group for LB to Service")
-  const loadBalancerInfo = await describeLoadBalancer(elbv2, loadBalancerArn);
+  const loadBalancerInfo = await describeLoadBalancer(elbv2, loadBalancerArn).promise();
   const vpcId = loadBalancerInfo.VpcId;
 
   console.log(loadBalancerInfo);
