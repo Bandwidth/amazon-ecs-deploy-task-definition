@@ -113,6 +113,7 @@ async function createNewSecurityGroup(ec2, sgName, sgDescription, vpcId) {
     const securityGroup = await describeSecurityGroup(ec2, sgName, vpcId);
     if (securityGroup != null) {
       console.log("The security group already existed. Continuing anyways")
+      return securityGroup.GroupId;
     } else {
       throw err;
     }
