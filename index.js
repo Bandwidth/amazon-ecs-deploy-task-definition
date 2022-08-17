@@ -52,8 +52,6 @@ async function authorizeIngressFromAnotherSecurityGroup(ec2, securityGroup, secu
     ]
   };
 
-  console.log(JSON.stringify(params));
-
   await ec2.authorizeSecurityGroupIngress(params, function(err, data) {
     if (err) console.log(err, err.stack);
     else {
@@ -87,7 +85,7 @@ async function authorizeAllEgress(ec2, securityGroup) {
   }).promise();
 }
 
-async function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) {
+async function createSecurityGroup(ec2, sgName, sgDescription, vpcId) {
   core.debug("Creating Security Group");
   const params = {
     Description: sgDescription,
@@ -95,12 +93,12 @@ async function createSecurityGroupForService(ec2, sgName, sgDescription, vpcId) 
     VpcId: vpcId
   };
 
-  // return ec2.createSecurityGroup(params, function(err, data) {
-  //   if (err) console.log(err, err.stack);
-  //   else {
-  //     core.debug(data);
-  //   }
-  // }).promise();
+  return ec2.createSecurityGroup(params, function(err, data) {
+    if (err) console.log(err, err.stack);
+    else {
+      core.debug(data);
+    }
+  }).promise();
 }
 
 async function describeSecurityGroup(ec2, sgName, vpcId) {
@@ -155,7 +153,7 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
   const vpcId = loadBalancerInfo.VpcId;
 
   const loadBalancerSecurityGroup = loadBalancerInfo.SecurityGroups[0];
-  const serviceSecurityGroupName = `load-balancer-to-${serviceName}`;
+  const serviceSecurityGroupName = `load-balancer-to-${serviceName}-1`;
   const existingSecurityGroup = await describeSecurityGroup(ec2, serviceSecurityGroupName, vpcId);
 
   if (existingSecurityGroup != null) {
@@ -164,7 +162,7 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
   }
 
   core.debug(`Security group ${serviceSecurityGroupName} does not exist, creating new group`);
-  const securityGroup = await createSecurityGroupForService(ec2, serviceSecurityGroupName, 'Load balancer to service', vpcId);
+  const securityGroup = await createSecurityGroup(ec2, serviceSecurityGroupName, 'Load balancer to service', vpcId);
   const serviceSecurityGroupId = securityGroup.GroupId;
 
   await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroup, 8080, 8080);
