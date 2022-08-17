@@ -109,7 +109,7 @@ async function describeLoadBalancer(elbv2, loadBalancerArn) {
       loadBalancerArn
     ]
   };
-  return elbv2.describeLoadBalancers(params, function(err, data) {
+  const loadBalancerInfo = await elbv2.describeLoadBalancers(params, function(err, data) {
     if (err) {
       console.log(err, err.stack);
     }
@@ -119,6 +119,8 @@ async function describeLoadBalancer(elbv2, loadBalancerArn) {
       return data.LoadBalancers[0];
     }
   });
+
+  return loadBalancerInfo;
 }
 
 async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName) {
