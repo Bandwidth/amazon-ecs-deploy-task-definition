@@ -124,6 +124,11 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
   core.debug("Create Security Group for LB to Service")
   const loadBalancerInfo = await describeLoadBalancer(elbv2, loadBalancerArn);
   const vpcId = loadBalancerInfo.VpcId;
+
+  console.log(loadBalancerInfo)
+  console.log(loadBalancerInfo.SecurityGroups)
+  console.log(loadBalancerInfo.SecurityGroups[0])
+
   const loadBalancerSecurityGroup = loadBalancerInfo.SecurityGroups[0];
 
   const serviceSecurityGroup = createSecurityGroupForService(ec2, `load-balancer-to${serviceName}`, 'Load balancer to service', vpcId);
