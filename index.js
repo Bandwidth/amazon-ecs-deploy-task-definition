@@ -502,23 +502,23 @@ async function run() {
 
       let serviceResponse = await describeServiceIfExists(ecs, service, clusterName, false);
 
-      if (!serviceResponse) {
+      // if (!serviceResponse) {
         core.debug("Existing service not found. Create new service.");
         await createEcsService(ecs, elbv2, ec2, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, codeDeployTargetGroupArn, serviceSubnets);
-        serviceResponse = await describeServiceIfExists(ecs, service, clusterName, true);
-      } else if (serviceResponse.status != 'ACTIVE') {
-        throw new Error(`Service is ${serviceResponse.status}`);
-      }
+        // serviceResponse = await describeServiceIfExists(ecs, service, clusterName, true);
+      // } else if (serviceResponse.status != 'ACTIVE') {
+      //   throw new Error(`Service is ${serviceResponse.status}`);
+      // }
 
-      if (!serviceResponse.deploymentController) {
-        // Service uses the 'ECS' deployment controller, so we can call UpdateService
-        await updateEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, forceNewDeployment);
-      } else if (serviceResponse.deploymentController.type == 'CODE_DEPLOY') {
-        // Service uses CodeDeploy, so we should start a CodeDeploy deployment
-        await createCodeDeployDeployment(codedeploy, clusterName, service, taskDefArn, waitForService, waitForMinutes);
-      } else {
-        throw new Error(`Unsupported deployment controller: ${serviceResponse.deploymentController.type}`);
-      }
+      // if (!serviceResponse.deploymentController) {
+      //   // Service uses the 'ECS' deployment controller, so we can call UpdateService
+      //   await updateEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, forceNewDeployment);
+      // } else if (serviceResponse.deploymentController.type == 'CODE_DEPLOY') {
+      //   // Service uses CodeDeploy, so we should start a CodeDeploy deployment
+      //   await createCodeDeployDeployment(codedeploy, clusterName, service, taskDefArn, waitForService, waitForMinutes);
+      // } else {
+      //   throw new Error(`Unsupported deployment controller: ${serviceResponse.deploymentController.type}`);
+      // }
     } else {
       core.debug('Service was not specified, no service updated');
     }
