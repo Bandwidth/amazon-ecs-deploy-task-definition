@@ -21,7 +21,7 @@ const IGNORED_TASK_DEFINITION_ATTRIBUTES = [
 ];
 
 async function waitForServiceStability(ecs, service, clusterName, waitForMinutes) {
-  core.debug(`Waiting for the service to become stable. Will wait for ${waitForMinutes} minutes`);
+  core.debug(`Waiting for the service ${service} to become stable in cluster ${clusterName}. Will wait for ${waitForMinutes} minutes`);
   const maxAttempts = (waitForMinutes * 60) / WAIT_DEFAULT_DELAY_SEC;
   await ecs.waitFor('servicesStable', {
     services: [service],
@@ -52,38 +52,8 @@ async function authorizeIngressFromAnotherSecurityGroup(ec2, securityGroup, secu
     ]
   };
 
-  try{
-    await ec2.authorizeSecurityGroupIngress(params).promise();
-  } catch (err) {
-    console.log("An error occurred, but it was probably fine");
-  }
+  await ec2.authorizeSecurityGroupIngress(params).promise();
 }
-
-// the all egress rule comes by default it seems
-// async function authorizeAllEgress(ec2, securityGroup) {
-//   core.debug("Add Egress")
-//   const params = {
-//     GroupId: securityGroup,
-//     IpPermissions: [
-//       {
-//         FromPort: -1,
-//         IpProtocol: "tcp",
-//         IpRanges: [
-//           {
-//             CidrIp: "0.0.0.0/0"
-//           }
-//         ],
-//         ToPort: -1
-//       }
-//     ]
-//   };
-//   await ec2.authorizeSecurityGroupEgress(params, function(err, data) {
-//     if (err) console.log(err, err.stack);
-//     else {
-//       core.debug(data);
-//     }
-//   }).promise();
-// }
 
 async function createNewSecurityGroup(ec2, sgName, sgDescription, vpcId) {
   core.debug("Creating Security Group");
@@ -93,22 +63,8 @@ async function createNewSecurityGroup(ec2, sgName, sgDescription, vpcId) {
     VpcId: vpcId
   };
 
-  try {
-    const response = await ec2.createSecurityGroup(params).promise();
-
-    return response.GroupId;
-  } catch (err) {
-    /**
-     * There's some issue where the SDK is trying to create the security group twice. For now, just catch
-     */
-    const securityGroup = await describeSecurityGroup(ec2, sgName, vpcId);
-    if (securityGroup != null) {
-      console.log("The security group already existed. Continuing anyways")
-      return securityGroup.GroupId;
-    } else {
-      throw err;
-    }
-  }
+  const response = await ec2.createSecurityGroup(params).promise();
+  return response.GroupId;
 }
 
 async function describeSecurityGroup(ec2, sgName, vpcId) {
@@ -167,8 +123,6 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
   await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroup, 8080, 8080);
   await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroup, 8125, 8125);
   await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroup, 8126, 8126);
-
-  // await authorizeAllEgress(ec2, serviceSecurityGroupId);
 
   return serviceSecurityGroupId;
 }
@@ -495,7 +449,7 @@ async function run() {
     // Get inputs
     const taskDefinitionFile = core.getInput('task-definition', { required: true });
 
-    const service = `${core.getInput('service-name', { required: false })}`;
+    const service = `${core.getInput('service-name', { required: false })}-1`;
 
     core.debug(`Service Name: ${service}`);
 
