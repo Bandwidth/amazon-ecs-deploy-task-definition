@@ -22,14 +22,14 @@ const IGNORED_TASK_DEFINITION_ATTRIBUTES = [
 
 async function waitForServiceStability(ecs, service, clusterName, waitForMinutes) {
   core.debug(`Waiting for the service ${service} to become stable in cluster ${clusterName}. Will wait for ${waitForMinutes} minutes`);
-  const maxAttempts = (waitForMinutes * 60) / WAIT_DEFAULT_DELAY_SEC;
+  // const maxAttempts = (waitForMinutes * 60) / WAIT_DEFAULT_DELAY_SEC;
   await ecs.waitFor('servicesStable', {
     services: [service],
     cluster: clusterName,
-    $waiter: {
-      delay: WAIT_DEFAULT_DELAY_SEC,
-      maxAttempts: maxAttempts
-    }
+    // $waiter: {
+    //   delay: WAIT_DEFAULT_DELAY_SEC,
+    //   maxAttempts: maxAttempts
+    // }
   }).promise();
 }
 
@@ -129,71 +129,64 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
 
 async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy, loadBalancerArn, targetGroupArn, subnets) {
   let params;
-  //
-  // const sgId = await createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName);
 
-  // if (enableCodeDeploy) {
-  //   params = {
-  //     serviceName: serviceName,
-  //     cluster: clusterName,
-  //     deploymentController: {
-  //       type: 'CODE_DEPLOY'
-  //     },
-  //     desiredCount: desiredCount,
-  //     enableExecuteCommand: enableExecuteCommand,
-  //     healthCheckGracePeriodSeconds: healthCheckGracePeriodSeconds,
-  //     launchType: 'FARGATE',
-  //     propagateTags: propagateTags,
-  //     taskDefinition: taskDefArn,
-  //     loadBalancers: [
-  //       {
-  //         containerName: 'web',
-  //         containerPort: '8080',
-  //         // loadBalancerName: loadBalancerArn,
-  //         targetGroupArn: targetGroupArn,
-  //       },
-  //     ],
-  //     networkConfiguration: {
-  //       awsvpcConfiguration: {
-  //         subnets: subnets,
-  //         assignPublicIp: 'DISABLED',
-  //         securityGroups: [
-  //             sgId,
-  //         ],
-  //       }
-  //     },
-  //   };
-  // } else {
-  //   params = {
-  //     serviceName: serviceName,
-  //     cluster: clusterName,
-  //     deploymentConfiguration: {
-  //       deploymentCircuitBreaker: {
-  //         enable: true,
-  //         rollback: true,
-  //       },
-  //       minimumHealthyPercent: minimumHealthyPercentage,
-  //     },
-  //     deploymentController: {
-  //       type: 'ECS',
-  //     },
-  //     desiredCount: desiredCount,
-  //     enableExecuteCommand: enableExecuteCommand,
-  //     healthCheckGracePeriodSeconds: healthCheckGracePeriodSeconds,
-  //     launchType: 'FARGATE',
-  //     propagateTags: propagateTags,
-  //     taskDefinition: taskDefArn,
-  //   };
-  // }
-  //
-  // core.debug("Creating Service")
-  // await ecs.createService(params).promise();
+  const sgId = await createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName);
 
-  if (waitForService && waitForService.toLowerCase() === 'true') {
-    await waitForServiceStability(ecs, serviceName, clusterName, waitForMinutes);
+  if (enableCodeDeploy) {
+    params = {
+      serviceName: serviceName,
+      cluster: clusterName,
+      deploymentController: {
+        type: 'CODE_DEPLOY'
+      },
+      desiredCount: 0,
+      enableExecuteCommand: enableExecuteCommand,
+      healthCheckGracePeriodSeconds: healthCheckGracePeriodSeconds,
+      launchType: 'FARGATE',
+      propagateTags: propagateTags,
+      taskDefinition: taskDefArn,
+      loadBalancers: [
+        {
+          containerName: 'web',
+          containerPort: '8080',
+          targetGroupArn: targetGroupArn,
+        },
+      ],
+      networkConfiguration: {
+        awsvpcConfiguration: {
+          subnets: subnets,
+          assignPublicIp: 'DISABLED',
+          securityGroups: [
+              sgId,
+          ],
+        }
+      },
+    };
   } else {
-    core.debug('Not waiting for the service to become stable');
+    params = {
+      serviceName: serviceName,
+      cluster: clusterName,
+      deploymentConfiguration: {
+        deploymentCircuitBreaker: {
+          enable: true,
+          rollback: true,
+        },
+        minimumHealthyPercent: minimumHealthyPercentage,
+      },
+      deploymentController: {
+        type: 'ECS',
+      },
+      desiredCount: desiredCount,
+      enableExecuteCommand: enableExecuteCommand,
+      healthCheckGracePeriodSeconds: healthCheckGracePeriodSeconds,
+      launchType: 'FARGATE',
+      propagateTags: propagateTags,
+      taskDefinition: taskDefArn,
+    };
   }
+
+  core.debug("Creating Service")
+  await ecs.createService(params).promise();
 }
 
 // Deploy to a service that uses the 'ECS' deployment controller
@@ -447,7 +440,7 @@ async function run() {
     // Get inputs
     const taskDefinitionFile = core.getInput('task-definition', { required: true });
 
-    const service = `${core.getInput('service-name', { required: false })}-2`;
+    const service = `${core.getInput('service-name', { required: false })}-3`;
 
     core.debug(`Service Name: ${service}`);
 
@@ -514,8 +507,8 @@ async function run() {
       //   // Service uses the 'ECS' deployment controller, so we can call UpdateService
       //   await updateEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, forceNewDeployment);
       // } else if (serviceResponse.deploymentController.type == 'CODE_DEPLOY') {
-      //   // Service uses CodeDeploy, so we should start a CodeDeploy deployment
-      //   await createCodeDeployDeployment(codedeploy, clusterName, service, taskDefArn, waitForService, waitForMinutes);
+        // Service uses CodeDeploy, so we should start a CodeDeploy deployment
+        await createCodeDeployDeployment(codedeploy, clusterName, service, taskDefArn, waitForService, waitForMinutes);
       // } else {
       //   throw new Error(`Unsupported deployment controller: ${serviceResponse.deploymentController.type}`);
       // }
@@ -535,3 +528,11 @@ module.exports = run;
 if (require.main === module) {
     run();
 }
+
+// if (require.main === module) {
+//   const ecs = new aws.ECS({
+//     customUserAgent: 'amazon-ecs-deploy-task-definition-for-github-actions'
+//   });
+//
+//   waitForServiceStability(ecs, 'zeus-geored-webapp-pr-351-2', 'zeus-geored-webapp-pr-351-ecs-us-east-2-cluster7C2BBDA8-m6H6xDvYk7kz', 30);
+// }
