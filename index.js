@@ -129,8 +129,8 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
 
 async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy, loadBalancerArn, targetGroupArn, subnets) {
   let params;
-
-  const sgId = await createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName);
+  //
+  // const sgId = await createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName);
 
   if (enableCodeDeploy) {
     params = {
@@ -185,11 +185,9 @@ async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskD
       taskDefinition: taskDefArn,
     };
   }
-
-  await ecs.createService(params, function(err, data) {
-    if (err) console.log(err, err.stack); // an error occurred
-    else     console.log(data);           // successful response
-  });
+  //
+  // core.debug("Creating Service")
+  // await ecs.createService(params).promise();
 
   if (waitForService && waitForService.toLowerCase() === 'true') {
     await waitForServiceStability(ecs, serviceName, clusterName, waitForMinutes);
