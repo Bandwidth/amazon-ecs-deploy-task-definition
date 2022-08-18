@@ -132,59 +132,59 @@ async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskD
   //
   // const sgId = await createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName);
 
-  if (enableCodeDeploy) {
-    params = {
-      serviceName: serviceName,
-      cluster: clusterName,
-      deploymentController: {
-        type: 'CODE_DEPLOY'
-      },
-      desiredCount: desiredCount,
-      enableExecuteCommand: enableExecuteCommand,
-      healthCheckGracePeriodSeconds: healthCheckGracePeriodSeconds,
-      launchType: 'FARGATE',
-      propagateTags: propagateTags,
-      taskDefinition: taskDefArn,
-      loadBalancers: [
-        {
-          containerName: 'web',
-          containerPort: '8080',
-          // loadBalancerName: loadBalancerArn,
-          targetGroupArn: targetGroupArn,
-        },
-      ],
-      networkConfiguration: {
-        awsvpcConfiguration: {
-          subnets: subnets,
-          assignPublicIp: 'DISABLED',
-          securityGroups: [
-              sgId,
-          ],
-        }
-      },
-    };
-  } else {
-    params = {
-      serviceName: serviceName,
-      cluster: clusterName,
-      deploymentConfiguration: {
-        deploymentCircuitBreaker: {
-          enable: true,
-          rollback: true,
-        },
-        minimumHealthyPercent: minimumHealthyPercentage,
-      },
-      deploymentController: {
-        type: 'ECS',
-      },
-      desiredCount: desiredCount,
-      enableExecuteCommand: enableExecuteCommand,
-      healthCheckGracePeriodSeconds: healthCheckGracePeriodSeconds,
-      launchType: 'FARGATE',
-      propagateTags: propagateTags,
-      taskDefinition: taskDefArn,
-    };
-  }
+  // if (enableCodeDeploy) {
+  //   params = {
+  //     serviceName: serviceName,
+  //     cluster: clusterName,
+  //     deploymentController: {
+  //       type: 'CODE_DEPLOY'
+  //     },
+  //     desiredCount: desiredCount,
+  //     enableExecuteCommand: enableExecuteCommand,
+  //     healthCheckGracePeriodSeconds: healthCheckGracePeriodSeconds,
+  //     launchType: 'FARGATE',
+  //     propagateTags: propagateTags,
+  //     taskDefinition: taskDefArn,
+  //     loadBalancers: [
+  //       {
+  //         containerName: 'web',
+  //         containerPort: '8080',
+  //         // loadBalancerName: loadBalancerArn,
+  //         targetGroupArn: targetGroupArn,
+  //       },
+  //     ],
+  //     networkConfiguration: {
+  //       awsvpcConfiguration: {
+  //         subnets: subnets,
+  //         assignPublicIp: 'DISABLED',
+  //         securityGroups: [
+  //             sgId,
+  //         ],
+  //       }
+  //     },
+  //   };
+  // } else {
+  //   params = {
+  //     serviceName: serviceName,
+  //     cluster: clusterName,
+  //     deploymentConfiguration: {
+  //       deploymentCircuitBreaker: {
+  //         enable: true,
+  //         rollback: true,
+  //       },
+  //       minimumHealthyPercent: minimumHealthyPercentage,
+  //     },
+  //     deploymentController: {
+  //       type: 'ECS',
+  //     },
+  //     desiredCount: desiredCount,
+  //     enableExecuteCommand: enableExecuteCommand,
+  //     healthCheckGracePeriodSeconds: healthCheckGracePeriodSeconds,
+  //     launchType: 'FARGATE',
+  //     propagateTags: propagateTags,
+  //     taskDefinition: taskDefArn,
+  //   };
+  // }
   //
   // core.debug("Creating Service")
   // await ecs.createService(params).promise();
