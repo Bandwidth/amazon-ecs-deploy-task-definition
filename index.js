@@ -53,12 +53,7 @@ async function authorizeIngressFromAnotherSecurityGroup(ec2, securityGroup, secu
   };
 
   try{
-    await ec2.authorizeSecurityGroupIngress(params, function(err, data) {
-      if (err) console.log(err, err.stack);
-      else {
-        core.debug(data);
-      }
-    }).promise();
+    await ec2.authorizeSecurityGroupIngress(params).promise();
   } catch (err) {
     console.log("An error occurred, but it was probably fine");
   }
@@ -99,14 +94,7 @@ async function createNewSecurityGroup(ec2, sgName, sgDescription, vpcId) {
   };
 
   try {
-    const response = await ec2.createSecurityGroup(params, async function(err, data) {
-      if (err) {
-        console.log(err, err.stack);
-      }
-      else {
-        core.debug(data);
-      }
-    }).promise();
+    const response = await ec2.createSecurityGroup(params).promise();
 
     return response.GroupId;
   } catch (err) {
@@ -142,10 +130,7 @@ async function describeSecurityGroup(ec2, sgName, vpcId) {
     ]
   };
 
-  const response = await ec2.describeSecurityGroups(params, function(err, data) {
-    if (err) console.log(err, err.stack);
-    else core.debug(data);
-  }).promise();
+  const response = await ec2.describeSecurityGroups(params).promise();
 
   return response.SecurityGroups[0];
 }
@@ -157,14 +142,7 @@ async function describeLoadBalancer(elbv2, loadBalancerArn) {
       loadBalancerArn
     ]
   };
-  const response = await elbv2.describeLoadBalancers(params, function(err, data) {
-    if (err) {
-      console.log(err, err.stack);
-    }
-    else {
-      core.debug(data);
-    }
-  }).promise();
+  const response = await elbv2.describeLoadBalancers(params).promise();
 
   return response.LoadBalancers[0];
 }
@@ -506,7 +484,8 @@ async function run() {
       customUserAgent: 'amazon-elbv2-deploy-task-definition-for-github-actions'
     });
     const ec2 = new aws.EC2({
-      customUserAgent: 'amazon-ec2-deploy-task-definition-for-github-actions'
+      customUserAgent: 'amazon-ec2-deploy-task-definition-for-github-actions',
+
     });
 
     const codedeploy = new aws.CodeDeploy({
