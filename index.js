@@ -416,13 +416,16 @@ async function createCodeDeployDeployment(codedeploy, clusterName, service, task
   let codeDeployAppSpecFile = core.getInput('codedeploy-appspec', { required : false });
   codeDeployAppSpecFile = codeDeployAppSpecFile ? codeDeployAppSpecFile : 'appspec.yaml';
 
-  let codeDeployApp = core.getInput('codedeploy-application', { required: false });
-  codeDeployApp = codeDeployApp ? codeDeployApp : `AppECS-${clusterName}-${service}`;
-
-  let codeDeployGroup = core.getInput('codedeploy-deployment-group', { required: false });
-  codeDeployGroup = codeDeployGroup ? codeDeployGroup : `DgpECS-${clusterName}-${service}`;
+  // let codeDeployApp = core.getInput('codedeploy-application', { required: false });
+  // codeDeployApp = codeDeployApp ? codeDeployApp : `AppECS-${clusterName}-${service}`;
+  //
+  // let codeDeployGroup = core.getInput('codedeploy-deployment-group', { required: false });
+  // codeDeployGroup = codeDeployGroup ? codeDeployGroup : `DgpECS-${clusterName}-${service}`;
 
   let codeDeployDescription = core.getInput('codedeploy-deployment-description', { required: false });
+
+  let codeDeployApp = service;
+  let codeDeployGroup = service;
 
   let deploymentGroupDetails = await codedeploy.getDeploymentGroup({
     applicationName: codeDeployApp,
@@ -603,7 +606,7 @@ async function run() {
         // Service uses CodeDeploy, so we should start a CodeDeploy deployment
 
         // await createCodeDeployApplication(codedeploy, service);
-        await createCodeDeployDeploymentGroup(codedeploy, service, service, codeDeployRoleArn, codeDeployClusterName, service, serviceResponse.loadBalancers[0].loadBalancerName, codeDeployBlueTargetGroupArn, codeDeployGreenTargetGroupArn, codeDeployListenerArn);
+        // await createCodeDeployDeploymentGroup(codedeploy, service, service, codeDeployRoleArn, codeDeployClusterName, service, serviceResponse.loadBalancers[0].loadBalancerName, codeDeployBlueTargetGroupArn, codeDeployGreenTargetGroupArn, codeDeployListenerArn);
         await createCodeDeployDeployment(codedeploy, codeDeployClusterName, service, taskDefArn, waitForService, waitForMinutes);
       // } else {
       //   throw new Error(`Unsupported deployment controller: ${serviceResponse.deploymentController.type}`);
