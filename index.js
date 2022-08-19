@@ -442,16 +442,16 @@ async function createCodeDeployDeployment(codedeploy, clusterName, service, task
   const appSpecContents = yaml.parse(fileContents);
 
   core.debug("Got appspec file of:")
-  core.debug(appSpecContents);
+  core.debug(JSON.stringify(appSpecContents));
 
-  for (var resource of findAppSpecValue(appSpecContents, 'resources')) {
-    for (var name in resource) {
-      const resourceContents = resource[name];
-      const properties = findAppSpecValue(resourceContents, 'properties');
-      const taskDefKey = findAppSpecKey(properties, 'taskDefinition');
-      properties[taskDefKey] = taskDefArn;
-    }
-  }
+  // for (var resource of findAppSpecValue(appSpecContents, 'resources')) {
+  //   for (var name in resource) {
+  //     const resourceContents = resource[name];
+  //     const properties = findAppSpecValue(resourceContents, 'properties');
+  //     const taskDefKey = findAppSpecKey(properties, 'taskDefinition');
+  //     properties[taskDefKey] = taskDefArn;
+  //   }
+  // }
 
   const appSpecString = JSON.stringify(appSpecContents);
   const appSpecHash = crypto.createHash('sha256').update(appSpecString).digest('hex');
