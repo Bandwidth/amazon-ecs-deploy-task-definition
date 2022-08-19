@@ -321,6 +321,95 @@ function validateProxyConfigurations(taskDef){
   return 'proxyConfiguration' in taskDef && taskDef.proxyConfiguration.type && taskDef.proxyConfiguration.type == 'APPMESH' && taskDef.proxyConfiguration.properties && taskDef.proxyConfiguration.properties.length > 0;
 }
 
+async function createCodeDeployApplication(codedeploy, applicationName) {
+  const params = {
+    applicationName: applicationName,
+    computePlatform: 'ECS'
+  };
+
+  await codedeploy.createApplication(params).promise();
+}
+
+async function createCodeDeployDeploymentGroup(codedeploy, applicationName, deploymentGroupName, serviceRoleArn, clusterName, serviceName, loadBalancerName, blueTargetGroupName, greenTargetGroupName, listenerArn) {
+  const params = {
+    applicationName: applicationName,
+    deploymentGroupName: deploymentGroupName,
+    serviceRoleArn: serviceRoleArn,
+    // alarmConfiguration: {
+    //   alarms: [
+    //     {
+    //       name: 'STRING_VALUE'
+    //     },
+    //     /* more items */
+    //   ],
+    //   enabled: true || false,
+    //   ignorePollAlarmFailure: true || false
+    // },
+    autoRollbackConfiguration: {
+      enabled: true,
+      events: [
+        'DEPLOYMENT_FAILURE',
+        'DEPLOYMENT_STOP_ON_ALARM',
+        'DEPLOYMENT_STOP_ON_REQUEST',
+      ]
+    },
+    blueGreenDeploymentConfiguration: {
+      deploymentReadyOption: {
+        actionOnTimeout: 'CONTINUE_DEPLOYMENT',
+        // waitTimeInMinutes: '30'
+      },
+      greenFleetProvisioningOption: {
+        action: 'DISCOVER_EXISTING',
+      },
+      terminateBlueInstancesOnDeploymentSuccess: {
+        action: 'TERMINATE',
+        // terminationWaitTimeInMinutes: '5'
+      }
+    },
+    deploymentConfigName: 'CodeDeployDefault.AllAtOnce',
+    deploymentStyle: {
+      deploymentOption: 'WITH_TRAFFIC_CONTROL',
+      deploymentType: 'BLUE_GREEN'
+    },
+    ecsServices: [
+      {
+        clusterName: clusterName,
+        serviceName: serviceName
+      },
+    ],
+    loadBalancerInfo: {
+      elbInfoList: [
+        {
+          name: loadBalancerName,
+        },
+      ],
+      // targetGroupInfoList: [
+      //   {
+      //     name: targetGroupName,
+      //   },
+      // ],
+      targetGroupPairInfoList: [
+        {
+          prodTrafficRoute: {
+            listenerArns: [
+              listenerArn,
+            ]
+          },
+          targetGroups: [
+            {
+              name: blueTargetGroupName
+            },
+            {
+              name: greenTargetGroupName
+            }
+          ],
+        },
+      ]
+    },
+  };
+  await codedeploy.createDeploymentGroup(params).promise();
+}
+
 // Deploy to a service that uses the 'CODE_DEPLOY' deployment controller
 async function createCodeDeployDeployment(codedeploy, clusterName, service, taskDefArn, waitForService, waitForMinutes) {
   core.debug('Updating AppSpec file with new task definition ARN');
@@ -457,7 +546,9 @@ async function run() {
     const newServiceUseCodeDeployInput = core.getInput('new-service-use-codedeploy', { required: false });
     const newServiceUseCodeDeploy = newServiceUseCodeDeployInput.toLowerCase() === 'true';
 
-    const codeDeployTargetGroupArn = core.getInput('codedeploy-target-group-arn', { required: false });
+    const codeDeployBlueTargetGroupArn = core.getInput('codedeploy-blue-target-group-arn', { required: false });
+    const codeDeployGreenTargetGroupArn = core.getInput('codedeploy-green-target-group-arn', { required: false });
+    const codeDeployListenerArn = core.getInput('codedeploy-listener-arn', { required: false });
     const codeDeployLoadBalancerArn = core.getInput('codedeploy-load-balancer-arn', { required: false });
 
     const cluster = core.getInput('cluster', { required: false });
@@ -497,7 +588,7 @@ async function run() {
 
       // if (!serviceResponse) {
         core.debug("Existing service not found. Create new service.");
-        await createEcsService(ecs, elbv2, ec2, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, codeDeployTargetGroupArn, serviceSubnets);
+        // await createEcsService(ecs, elbv2, ec2, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, codeDeployTargetGroupArn, serviceSubnets);
         // serviceResponse = await describeServiceIfExists(ecs, service, clusterName, true);
       // } else if (serviceResponse.status != 'ACTIVE') {
       //   throw new Error(`Service is ${serviceResponse.status}`);
@@ -508,6 +599,9 @@ async function run() {
       //   await updateEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, forceNewDeployment);
       // } else if (serviceResponse.deploymentController.type == 'CODE_DEPLOY') {
         // Service uses CodeDeploy, so we should start a CodeDeploy deployment
+
+        await createCodeDeployApplication(codedeploy, service);
+        await createCodeDeployDeploymentGroup(codedeploy, service, service, serviceResponse.serviceRoleArn, clusterName, service, serviceResponse, serviceResponse.loadBalancers[0].loadBalancerName, codeDeployBlueTargetGroupArn, codeDeployGreenTargetGroupArn, codeDeployListenerArn);
         await createCodeDeployDeployment(codedeploy, clusterName, service, taskDefArn, waitForService, waitForMinutes);
       // } else {
       //   throw new Error(`Unsupported deployment controller: ${serviceResponse.deploymentController.type}`);
