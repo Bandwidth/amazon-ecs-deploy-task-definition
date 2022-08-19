@@ -552,7 +552,7 @@ async function run() {
     const codeDeployGreenTargetGroupArn = core.getInput('codedeploy-green-target-group-arn', { required: false });
     const codeDeployListenerArn = core.getInput('codedeploy-listener-arn', { required: false });
     const codeDeployLoadBalancerArn = core.getInput('codedeploy-load-balancer-arn', { required: false });
-    const codeDeployClusterName = core.getInput('codedeploy-cluster-name-arn', { required: false });
+    const codeDeployClusterName = core.getInput('codedeploy-cluster-name', { required: false });
 
     const codeDeployRoleArn = core.getInput('codedeploy-role-arn', { required: false });
 
