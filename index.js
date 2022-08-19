@@ -360,9 +360,6 @@ async function createCodeDeployDeploymentGroup(codedeploy, applicationName, depl
         actionOnTimeout: 'CONTINUE_DEPLOYMENT',
         // waitTimeInMinutes: '30'
       },
-      greenFleetProvisioningOption: {
-        action: 'DISCOVER_EXISTING',
-      },
       terminateBlueInstancesOnDeploymentSuccess: {
         action: 'TERMINATE',
         // terminationWaitTimeInMinutes: '5'
