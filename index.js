@@ -552,6 +552,7 @@ async function run() {
     const codeDeployGreenTargetGroupArn = core.getInput('codedeploy-green-target-group-arn', { required: false });
     const codeDeployListenerArn = core.getInput('codedeploy-listener-arn', { required: false });
     const codeDeployLoadBalancerArn = core.getInput('codedeploy-load-balancer-arn', { required: false });
+    const codeDeployClusterName = core.getInput('codedeploy-cluster-name-arn', { required: false });
 
     const codeDeployRoleArn = core.getInput('codedeploy-role-arn', { required: false });
 
@@ -605,8 +606,8 @@ async function run() {
         // Service uses CodeDeploy, so we should start a CodeDeploy deployment
 
         // await createCodeDeployApplication(codedeploy, service);
-        await createCodeDeployDeploymentGroup(codedeploy, service, service, codeDeployRoleArn, clusterName, service, serviceResponse.loadBalancers[0].loadBalancerName, codeDeployBlueTargetGroupArn, codeDeployGreenTargetGroupArn, codeDeployListenerArn);
-        await createCodeDeployDeployment(codedeploy, clusterName, service, taskDefArn, waitForService, waitForMinutes);
+        await createCodeDeployDeploymentGroup(codedeploy, service, service, codeDeployRoleArn, codeDeployClusterName, service, serviceResponse.loadBalancers[0].loadBalancerName, codeDeployBlueTargetGroupArn, codeDeployGreenTargetGroupArn, codeDeployListenerArn);
+        await createCodeDeployDeployment(codedeploy, codeDeployClusterName, service, taskDefArn, waitForService, waitForMinutes);
       // } else {
       //   throw new Error(`Unsupported deployment controller: ${serviceResponse.deploymentController.type}`);
       // }
