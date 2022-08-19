@@ -368,7 +368,7 @@ async function createCodeDeployDeploymentGroup(codedeploy, applicationName, depl
         // terminationWaitTimeInMinutes: '5'
       }
     },
-    deploymentConfigName: 'CodeDeployDefault.AllAtOnce',
+    deploymentConfigName: 'CodeDeployDefault.ECSAllAtOnce',
     deploymentStyle: {
       deploymentOption: 'WITH_TRAFFIC_CONTROL',
       deploymentType: 'BLUE_GREEN'
