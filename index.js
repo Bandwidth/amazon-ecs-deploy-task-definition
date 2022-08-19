@@ -55,6 +55,27 @@ async function authorizeIngressFromAnotherSecurityGroup(ec2, securityGroup, secu
   await ec2.authorizeSecurityGroupIngress(params).promise();
 }
 
+async function authorizeEgressToAnotherSecurityGroup(ec2, securityGroup, securityGroupToEgressTo, fromPort, toPort) {
+  const params = {
+    GroupId: securityGroup,
+    IpPermissions: [
+      {
+        FromPort: fromPort,
+        IpProtocol: "tcp",
+        UserIdGroupPairs: [
+          {
+            Description: "HTTP access to other security group",
+            GroupId: securityGroupToEgressTo,
+          }
+        ],
+        ToPort: toPort,
+      }
+    ]
+  };
+
+  await ec2.authorizeSecurityGroupEgress(params).promise();
+}
+
 async function createNewSecurityGroup(ec2, sgName, sgDescription, vpcId) {
   core.debug("Creating Security Group");
   const params = {
@@ -108,7 +129,7 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
   const loadBalancerInfo = await describeLoadBalancer(elbv2, loadBalancerArn);
   const vpcId = loadBalancerInfo.VpcId;
 
-  const loadBalancerSecurityGroup = loadBalancerInfo.SecurityGroups[0];
+  const loadBalancerSecurityGroupId = loadBalancerInfo.SecurityGroups[0];
   const serviceSecurityGroupName = `load-balancer-to-${serviceName}`;
   const existingSecurityGroup = await describeSecurityGroup(ec2, serviceSecurityGroupName, vpcId);
 
@@ -120,9 +141,14 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
   core.debug(`Security group ${serviceSecurityGroupName} does not exist, creating new group`);
   const serviceSecurityGroupId = await createNewSecurityGroup(ec2, serviceSecurityGroupName, 'Load balancer to service', vpcId);
 
-  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroup, 8080, 8080);
-  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroup, 8125, 8125);
-  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroup, 8126, 8126);
+  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroupId, 8080, 8080);
+  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroupId, 8125, 8125);
+  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroupId, 8126, 8126);
+
+  // the load balancer's security group must be updated as well
+  await authorizeEgressToAnotherSecurityGroup(ec2, loadBalancerSecurityGroupId, serviceSecurityGroupId, 8080, 8080);
+  await authorizeEgressToAnotherSecurityGroup(ec2, loadBalancerSecurityGroupId, serviceSecurityGroupId, 8125, 8125);
+  await authorizeEgressToAnotherSecurityGroup(ec2, loadBalancerSecurityGroupId, serviceSecurityGroupId, 8126, 8126);
 
   return serviceSecurityGroupId;
 }
@@ -535,7 +561,7 @@ async function run() {
     // Get inputs
     const taskDefinitionFile = core.getInput('task-definition', { required: true });
 
-    const service = `${core.getInput('service-name', { required: false })}-8`;
+    const service = `${core.getInput('service-name', { required: false })}-9`;
 
     core.debug(`Service Name: ${service}`);
 
