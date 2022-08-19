@@ -438,7 +438,11 @@ async function createCodeDeployDeployment(codedeploy, clusterName, service, task
     codeDeployAppSpecFile :
     path.join(process.env.GITHUB_WORKSPACE, codeDeployAppSpecFile);
   const fileContents = fs.readFileSync(appSpecPath, 'utf8');
+
   const appSpecContents = yaml.parse(fileContents);
+
+  core.debug("Got appspec file of:")
+  core.debug(appSpecContents);
 
   for (var resource of findAppSpecValue(appSpecContents, 'resources')) {
     for (var name in resource) {
