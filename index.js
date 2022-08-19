@@ -322,6 +322,7 @@ function validateProxyConfigurations(taskDef){
 }
 
 async function createCodeDeployApplication(codedeploy, applicationName) {
+  core.debug("Creating code deploy application");
   const params = {
     applicationName: applicationName,
     computePlatform: 'ECS'
@@ -331,6 +332,7 @@ async function createCodeDeployApplication(codedeploy, applicationName) {
 }
 
 async function createCodeDeployDeploymentGroup(codedeploy, applicationName, deploymentGroupName, serviceRoleArn, clusterName, serviceName, loadBalancerName, blueTargetGroupName, greenTargetGroupName, listenerArn) {
+  core.debug("Creating code deploy deployment group");
   const params = {
     applicationName: applicationName,
     deploymentGroupName: deploymentGroupName,
@@ -551,6 +553,8 @@ async function run() {
     const codeDeployListenerArn = core.getInput('codedeploy-listener-arn', { required: false });
     const codeDeployLoadBalancerArn = core.getInput('codedeploy-load-balancer-arn', { required: false });
 
+    const codeDeployRoleArn = core.getInput('codedeploy-role-arn', { required: false });
+
     const cluster = core.getInput('cluster', { required: false });
     const waitForService = core.getInput('wait-for-service-stability', { required: false });
     let waitForMinutes = parseInt(core.getInput('wait-for-minutes', { required: false })) || 30;
@@ -600,8 +604,8 @@ async function run() {
       // } else if (serviceResponse.deploymentController.type == 'CODE_DEPLOY') {
         // Service uses CodeDeploy, so we should start a CodeDeploy deployment
 
-        await createCodeDeployApplication(codedeploy, service);
-        await createCodeDeployDeploymentGroup(codedeploy, service, service, serviceResponse.roleArn, clusterName, service, serviceResponse.loadBalancers[0].loadBalancerName, codeDeployBlueTargetGroupArn, codeDeployGreenTargetGroupArn, codeDeployListenerArn);
+        // await createCodeDeployApplication(codedeploy, service);
+        await createCodeDeployDeploymentGroup(codedeploy, service, service, codeDeployRoleArn, clusterName, service, serviceResponse.loadBalancers[0].loadBalancerName, codeDeployBlueTargetGroupArn, codeDeployGreenTargetGroupArn, codeDeployListenerArn);
         await createCodeDeployDeployment(codedeploy, clusterName, service, taskDefArn, waitForService, waitForMinutes);
       // } else {
       //   throw new Error(`Unsupported deployment controller: ${serviceResponse.deploymentController.type}`);
