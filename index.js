@@ -380,11 +380,11 @@ async function createCodeDeployDeploymentGroup(codedeploy, applicationName, depl
       },
     ],
     loadBalancerInfo: {
-      elbInfoList: [
-        {
-          name: loadBalancerName,
-        },
-      ],
+      // elbInfoList: [
+      //   {
+      //     name: loadBalancerName,
+      //   },
+      // ],
       // targetGroupInfoList: [
       //   {
       //     name: targetGroupName,
