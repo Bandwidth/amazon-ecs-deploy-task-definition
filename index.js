@@ -73,6 +73,9 @@ async function authorizeEgressToAnotherSecurityGroup(ec2, securityGroup, securit
     ]
   };
 
+  core.debug("Egress this");
+  core.debug(JSON.stringify(params));
+
   await ec2.authorizeSecurityGroupEgress(params).promise();
 }
 
@@ -561,7 +564,7 @@ async function run() {
     // Get inputs
     const taskDefinitionFile = core.getInput('task-definition', { required: true });
 
-    const service = `${core.getInput('service-name', { required: false })}-9`;
+    const service = `${core.getInput('service-name', { required: false })}-10`;
 
     core.debug(`Service Name: ${service}`);
 
