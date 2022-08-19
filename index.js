@@ -535,7 +535,7 @@ async function run() {
     // Get inputs
     const taskDefinitionFile = core.getInput('task-definition', { required: true });
 
-    const service = `${core.getInput('service-name', { required: false })}-7`;
+    const service = `${core.getInput('service-name', { required: false })}-8`;
 
     core.debug(`Service Name: ${service}`);
 
