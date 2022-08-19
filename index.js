@@ -535,7 +535,7 @@ async function run() {
     // Get inputs
     const taskDefinitionFile = core.getInput('task-definition', { required: true });
 
-    const service = `${core.getInput('service-name', { required: false })}-5`;
+    const service = `${core.getInput('service-name', { required: false })}-6`;
 
     core.debug(`Service Name: ${service}`);
 
@@ -553,6 +553,7 @@ async function run() {
     const newServiceUseCodeDeploy = newServiceUseCodeDeployInput.toLowerCase() === 'true';
 
     const codeDeployBlueTargetGroupName = core.getInput('codedeploy-blue-target-group-name', { required: false });
+    const codeDeployBlueTargetGroupArn = core.getInput('codedeploy-blue-target-group-arn', { required: false });
     const codeDeployGreenTargetGroupName = core.getInput('codedeploy-green-target-group-name', { required: false });
     const codeDeployListenerArn = core.getInput('codedeploy-listener-arn', { required: false });
     const codeDeployLoadBalancerArn = core.getInput('codedeploy-load-balancer-arn', { required: false });
@@ -597,7 +598,7 @@ async function run() {
 
       // if (!serviceResponse) {
         core.debug("Existing service not found. Create new service.");
-        // await createEcsService(ecs, elbv2, ec2, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, codeDeployTargetGroupArn, serviceSubnets);
+        await createEcsService(ecs, elbv2, ec2, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, codeDeployBlueTargetGroupArn, serviceSubnets);
         // serviceResponse = await describeServiceIfExists(ecs, service, clusterName, true);
       // } else if (serviceResponse.status != 'ACTIVE') {
       //   throw new Error(`Service is ${serviceResponse.status}`);
@@ -609,8 +610,8 @@ async function run() {
       // } else if (serviceResponse.deploymentController.type == 'CODE_DEPLOY') {
         // Service uses CodeDeploy, so we should start a CodeDeploy deployment
 
-        // await createCodeDeployApplication(codedeploy, service);
-        // await createCodeDeployDeploymentGroup(codedeploy, service, service, codeDeployRoleArn, codeDeployClusterName, service, serviceResponse.loadBalancers[0].loadBalancerName, codeDeployBlueTargetGroupName, codeDeployGreenTargetGroupName, codeDeployListenerArn);
+        await createCodeDeployApplication(codedeploy, service);
+        await createCodeDeployDeploymentGroup(codedeploy, service, service, codeDeployRoleArn, codeDeployClusterName, service, serviceResponse.loadBalancers[0].loadBalancerName, codeDeployBlueTargetGroupName, codeDeployGreenTargetGroupName, codeDeployListenerArn);
         await createCodeDeployDeployment(codedeploy, codeDeployClusterName, service, taskDefArn, waitForService, waitForMinutes);
       // } else {
       //   throw new Error(`Unsupported deployment controller: ${serviceResponse.deploymentController.type}`);
