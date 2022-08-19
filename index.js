@@ -611,7 +611,7 @@ async function run() {
         // Service uses CodeDeploy, so we should start a CodeDeploy deployment
 
         // await createCodeDeployApplication(codedeploy, service);
-        await createCodeDeployDeploymentGroup(codedeploy, service, service, codeDeployRoleArn, codeDeployClusterName, service, serviceResponse.loadBalancers[0].loadBalancerName, codeDeployBlueTargetGroupName, codeDeployGreenTargetGroupName, codeDeployListenerArn);
+        // await createCodeDeployDeploymentGroup(codedeploy, service, service, codeDeployRoleArn, codeDeployClusterName, service, serviceResponse.loadBalancers[0].loadBalancerName, codeDeployBlueTargetGroupName, codeDeployGreenTargetGroupName, codeDeployListenerArn);
         await createCodeDeployDeployment(codedeploy, codeDeployClusterName, service, taskDefArn, waitForService, waitForMinutes);
       // } else {
       //   throw new Error(`Unsupported deployment controller: ${serviceResponse.deploymentController.type}`);
