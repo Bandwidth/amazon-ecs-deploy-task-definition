@@ -22,14 +22,14 @@ const IGNORED_TASK_DEFINITION_ATTRIBUTES = [
 
 async function waitForServiceStability(ecs, service, clusterName, waitForMinutes) {
   core.debug(`Waiting for the service ${service} to become stable in cluster ${clusterName}. Will wait for ${waitForMinutes} minutes`);
-  // const maxAttempts = (waitForMinutes * 60) / WAIT_DEFAULT_DELAY_SEC;
+  const maxAttempts = (waitForMinutes * 60) / WAIT_DEFAULT_DELAY_SEC;
   await ecs.waitFor('servicesStable', {
     services: [service],
     cluster: clusterName,
-    // $waiter: {
-    //   delay: WAIT_DEFAULT_DELAY_SEC,
-    //   maxAttempts: maxAttempts
-    // }
+    $waiter: {
+      delay: WAIT_DEFAULT_DELAY_SEC,
+      maxAttempts: maxAttempts
+    }
   }).promise();
 }
 
@@ -156,7 +156,7 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
   return serviceSecurityGroupId;
 }
 
-async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy, loadBalancerArn, targetGroupArn, subnets) {
+async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskDefArn, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy, loadBalancerArn, targetGroupArn, subnets) {
   let params;
 
   const sgId = await createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName);
@@ -239,27 +239,6 @@ async function updateEcsService(ecs, clusterName, service, taskDefArn, waitForSe
   }
 }
 
-// Find value in a CodeDeploy AppSpec file with a case-insensitive key
-function findAppSpecValue(obj, keyName) {
-  return obj[findAppSpecKey(obj, keyName)];
-}
-
-function findAppSpecKey(obj, keyName) {
-  if (!obj) {
-    throw new Error(`AppSpec file must include property '${keyName}'`);
-  }
-
-  const keyToMatch = keyName.toLowerCase();
-
-  for (var key in obj) {
-    if (key.toLowerCase() == keyToMatch) {
-      return key;
-    }
-  }
-
-  throw new Error(`AppSpec file must include property '${keyName}'`);
-}
-
 function isEmptyValue(value) {
   if (value === null || value === undefined || value === '') {
     return true;
@@ -307,7 +286,7 @@ function cleanNullKeys(obj) {
 }
 
 function removeIgnoredAttributes(taskDef) {
-  for (var attribute of IGNORED_TASK_DEFINITION_ATTRIBUTES) {
+  for (const attribute of IGNORED_TASK_DEFINITION_ATTRIBUTES) {
     if (taskDef[attribute]) {
       core.warning(`Ignoring property '${attribute}' in the task definition file. ` +
         'This property is returned by the Amazon ECS DescribeTaskDefinition API and may be shown in the ECS console, ' +
@@ -350,6 +329,31 @@ function validateProxyConfigurations(taskDef){
   return 'proxyConfiguration' in taskDef && taskDef.proxyConfiguration.type && taskDef.proxyConfiguration.type == 'APPMESH' && taskDef.proxyConfiguration.properties && taskDef.proxyConfiguration.properties.length > 0;
 }
 
+async function createCodeDeployApplicationIfMissing(codedeploy, applicationName) {
+  if (await doesCodeDeployApplicationExist(codedeploy, applicationName)) {
+    core.info("Using existing CodeDeploy Application");
+    return;
+  }
+
+  core.info("Creating new CodeDeploy Application");
+  await createCodeDeployApplication(codedeploy, applicationName);
+}
+
+async function doesCodeDeployApplicationExist(codedeploy, applicationName) {
+  core.debug("Checking for codedeploy application");
+
+  const params = {
+    applicationName: applicationName,
+  };
+
+  const response = await codedeploy.getApplication(params).promise();
+  if (response.application.applicationId) {
+    return true;
+  }
+
+  return false;
+}
+
 async function createCodeDeployApplication(codedeploy, applicationName) {
   core.debug("Creating code deploy application");
   const params = {
@@ -360,22 +364,39 @@ async function createCodeDeployApplication(codedeploy, applicationName) {
   await codedeploy.createApplication(params).promise();
 }
 
-async function createCodeDeployDeploymentGroup(codedeploy, applicationName, deploymentGroupName, serviceRoleArn, clusterName, serviceName, loadBalancerName, blueTargetGroupName, greenTargetGroupName, listenerArn) {
+async function createCodeDeployDeploymentGroupIfMissing(codedeploy, applicationName, deploymentGroupName, serviceRoleArn, clusterName, serviceName, blueTargetGroupName, greenTargetGroupName, listenerArn) {
+  if (await doesCodeDeployDeploymentGroupExist(codedeploy, applicationName, deploymentGroupName)) {
+    core.info("Using existing CodeDeploy DeploymentGroup");
+    return;
+  }
+
+  core.info("Creating new CodeDeploy DeploymentGroup");
+  await createCodeDeployDeploymentGroup(codedeploy, applicationName, deploymentGroupName, serviceRoleArn, clusterName, serviceName, blueTargetGroupName, greenTargetGroupName, listenerArn);
+}
+
+async function doesCodeDeployDeploymentGroupExist(codedeploy, applicationName, deploymentGroupName) {
+  core.debug("Checking for CodeDeploy DeploymentGroup");
+
+  const params = {
+    applicationName: applicationName,
+    deploymentGroupName: deploymentGroupName,
+  };
+
+  const response = await codedeploy.getDeploymentGroup(params).promise();
+
+  if (response.deploymentGroupInfo.deploymentGroupName){
+    return true;
+  }
+
+  return false;
+}
+
+async function createCodeDeployDeploymentGroup(codedeploy, applicationName, deploymentGroupName, serviceRoleArn, clusterName, serviceName, blueTargetGroupName, greenTargetGroupName, listenerArn) {
   core.debug("Creating code deploy deployment group");
   const params = {
     applicationName: applicationName,
     deploymentGroupName: deploymentGroupName,
     serviceRoleArn: serviceRoleArn,
-    // alarmConfiguration: {
-    //   alarms: [
-    //     {
-    //       name: 'STRING_VALUE'
-    //     },
-    //     /* more items */
-    //   ],
-    //   enabled: true || false,
-    //   ignorePollAlarmFailure: true || false
-    // },
     autoRollbackConfiguration: {
       enabled: true,
       events: [
@@ -387,11 +408,9 @@ async function createCodeDeployDeploymentGroup(codedeploy, applicationName, depl
     blueGreenDeploymentConfiguration: {
       deploymentReadyOption: {
         actionOnTimeout: 'CONTINUE_DEPLOYMENT',
-        // waitTimeInMinutes: '30'
       },
       terminateBlueInstancesOnDeploymentSuccess: {
         action: 'TERMINATE',
-        // terminationWaitTimeInMinutes: '5'
       }
     },
     deploymentConfigName: 'CodeDeployDefault.ECSAllAtOnce',
@@ -406,16 +425,6 @@ async function createCodeDeployDeploymentGroup(codedeploy, applicationName, depl
       },
     ],
     loadBalancerInfo: {
-      // elbInfoList: [
-      //   {
-      //     name: loadBalancerName,
-      //   },
-      // ],
-      // targetGroupInfoList: [
-      //   {
-      //     name: targetGroupName,
-      //   },
-      // ],
       targetGroupPairInfoList: [
         {
           prodTrafficRoute: {
@@ -438,58 +447,73 @@ async function createCodeDeployDeploymentGroup(codedeploy, applicationName, depl
   await codedeploy.createDeploymentGroup(params).promise();
 }
 
-// Deploy to a service that uses the 'CODE_DEPLOY' deployment controller
-async function createCodeDeployDeployment(codedeploy, clusterName, service, taskDefArn, waitForService, waitForMinutes) {
+// Find value in a CodeDeploy AppSpec file with a case-insensitive key
+function findAppSpecValue(obj, keyName) {
+  return obj[findAppSpecKey(obj, keyName)];
+}
+
+function findAppSpecKey(obj, keyName) {
+  if (!obj) {
+    throw new Error(`AppSpec file must include property '${keyName}'`);
+  }
+
+  const keyToMatch = keyName.toLowerCase();
+
+  for (var key in obj) {
+    if (key.toLowerCase() == keyToMatch) {
+      return key;
+    }
+  }
+
+  throw new Error(`AppSpec file must include property '${keyName}'`);
+}
+
+function updateTaskDefinitionArnInAppSpec(appSpecYaml, taskDefArn) {
+  for (const resource of findAppSpecValue(appSpecYaml, 'resources')) {
+    for (const name in resource) {
+      const resourceContents = resource[name];
+      const properties = findAppSpecValue(resourceContents, 'properties');
+      const taskDefKey = findAppSpecKey(properties, 'taskDefinition');
+      properties[taskDefKey] = taskDefArn;
+    }
+  }
+
+  return appSpecYaml;
+}
+
+function readYaml(filePath) {
+  const fixedPath = path.isAbsolute(filePath) ?
+      filePath :
+      path.join(process.env.GITHUB_WORKSPACE, filePath);
+  const fileContents = fs.readFileSync(fixedPath, 'utf8');
+
+  return yaml.parse(fileContents);
+}
+
+async function createCodeDeployDeployment(codedeploy, service, appSpecFilePath, taskDefArn, waitForService, waitForMinutes) {
   core.debug('Updating AppSpec file with new task definition ARN');
 
-  let codeDeployAppSpecFile = core.getInput('codedeploy-appspec', { required : false });
-  codeDeployAppSpecFile = codeDeployAppSpecFile ? codeDeployAppSpecFile : 'appspec.yaml';
-
-  // let codeDeployApp = core.getInput('codedeploy-application', { required: false });
-  // codeDeployApp = codeDeployApp ? codeDeployApp : `AppECS-${clusterName}-${service}`;
-  //
-  // let codeDeployGroup = core.getInput('codedeploy-deployment-group', { required: false });
-  // codeDeployGroup = codeDeployGroup ? codeDeployGroup : `DgpECS-${clusterName}-${service}`;
-
-  let codeDeployDescription = core.getInput('codedeploy-deployment-description', { required: false });
-
-  let codeDeployApp = service;
-  let codeDeployGroup = service;
-
   let deploymentGroupDetails = await codedeploy.getDeploymentGroup({
-    applicationName: codeDeployApp,
-    deploymentGroupName: codeDeployGroup
+    applicationName: service,
+    deploymentGroupName: service
   }).promise();
   deploymentGroupDetails = deploymentGroupDetails.deploymentGroupInfo;
 
-  // Insert the task def ARN into the appspec file
-  const appSpecPath = path.isAbsolute(codeDeployAppSpecFile) ?
-    codeDeployAppSpecFile :
-    path.join(process.env.GITHUB_WORKSPACE, codeDeployAppSpecFile);
-  const fileContents = fs.readFileSync(appSpecPath, 'utf8');
-
-  const appSpecContents = yaml.parse(fileContents);
+  let appSpecYaml = readYaml(appSpecFilePath);
+  appSpecYaml = updateTaskDefinitionArnInAppSpec(appSpecYaml, taskDefArn);
 
   core.debug("Got appspec file of:")
-  core.debug(JSON.stringify(appSpecContents));
+  core.debug(JSON.stringify(appSpecYaml));
 
-  // for (var resource of findAppSpecValue(appSpecContents, 'resources')) {
-  //   for (var name in resource) {
-  //     const resourceContents = resource[name];
-  //     const properties = findAppSpecValue(resourceContents, 'properties');
-  //     const taskDefKey = findAppSpecKey(properties, 'taskDefinition');
-  //     properties[taskDefKey] = taskDefArn;
-  //   }
-  // }
-
-  const appSpecString = JSON.stringify(appSpecContents);
+  const appSpecString = JSON.stringify(appSpecYaml);
   const appSpecHash = crypto.createHash('sha256').update(appSpecString).digest('hex');
 
   // Start the deployment with the updated appspec contents
   core.debug('Starting CodeDeploy deployment');
   let deploymentParams = {
-    applicationName: codeDeployApp,
-    deploymentGroupName: codeDeployGroup,
+    applicationName: service,
+    deploymentGroupName: service,
+    description: `Deployment for ${service}`,
     revision: {
       revisionType: 'AppSpecContent',
       appSpecContent: {
@@ -498,10 +522,7 @@ async function createCodeDeployDeployment(codedeploy, clusterName, service, task
       }
     }
   };
-  // If it hasn't been set then we don't even want to pass it to the api call to maintain previous behaviour.
-  if (codeDeployDescription) {
-    deploymentParams.description = codeDeployDescription;
-  }
+
   const createDeployResponse = await codedeploy.createDeployment(deploymentParams).promise();
   core.setOutput('codedeploy-deployment-id', createDeployResponse.deploymentId);
   core.info(`Deployment started. Watch this deployment's progress in the AWS CodeDeploy console: https://console.aws.amazon.com/codesuite/codedeploy/deployments/${createDeployResponse.deploymentId}?region=${aws.config.region}`);
@@ -544,6 +565,56 @@ async function describeServiceIfExists(ecs, service, clusterName, errorIfDoesntE
   return describeResponse.services[0];
 }
 
+async function registerTaskDefinition(ecs, taskDefinitionFile) {
+  core.debug('Registering the task definition');
+
+  const taskDefPath = path.isAbsolute(taskDefinitionFile) ?
+      taskDefinitionFile :
+      path.join(process.env.GITHUB_WORKSPACE, taskDefinitionFile);
+
+  const fileContents = fs.readFileSync(taskDefPath, 'utf8');
+  const taskDefContents = maintainValidObjects(removeIgnoredAttributes(cleanNullKeys(yaml.parse(fileContents))));
+
+  let registerResponse;
+  try {
+    registerResponse = await ecs.registerTaskDefinition(taskDefContents).promise();
+  } catch (error) {
+    core.setFailed("Failed to register task definition in ECS: " + error.message);
+    core.debug("Task definition contents:");
+    core.debug(JSON.stringify(taskDefContents, undefined, 4));
+    throw(error);
+  }
+
+  const taskDefArn = registerResponse.taskDefinition.taskDefinitionArn;
+  core.setOutput('task-definition-arn', taskDefArn);
+
+  return taskDefArn;
+}
+
+async function createServiceIfMissing(ecs, elbv2, ec2, serviceName, clusterName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, codeDeployBlueTargetGroupArn, serviceSubnets) {
+  let serviceResponse = await describeServiceIfExists(ecs, serviceName, clusterName, false);
+
+  if (serviceResponse && serviceResponse.status !== 'ACTIVE') {
+    throw new Error(`Service is ${serviceResponse.status}`);
+  }
+
+  if (!serviceResponse) {
+    core.info("Existing service not found. Create new service.");
+    await createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, codeDeployBlueTargetGroupArn, serviceSubnets);
+    serviceResponse = await describeServiceIfExists(ecs, serviceName, clusterName, true);
+  } else {
+    core.info("Using existing service");
+  }
+
+  return serviceResponse;
+}
+
+async function performCodeDeployDeployment(codedeploy, serviceName, appSpecFilePath, taskDefArn, codeDeployRoleArn, codeDeployClusterName, codeDeployBlueTargetGroupName, codeDeployGreenTargetGroupName, codeDeployListenerArn, waitForService, waitForMinutes) {
+  await createCodeDeployApplicationIfMissing(codedeploy, serviceName);
+  await createCodeDeployDeploymentGroupIfMissing(codedeploy, serviceName, serviceName, codeDeployRoleArn, codeDeployClusterName, serviceName, codeDeployBlueTargetGroupName, codeDeployGreenTargetGroupName, codeDeployListenerArn);
+  await createCodeDeployDeployment(codedeploy, serviceName, appSpecFilePath, taskDefArn, waitForService, waitForMinutes);
+}
+
 async function run() {
   try {
     const ecs = new aws.ECS({
@@ -564,10 +635,7 @@ async function run() {
     // Get inputs
     const taskDefinitionFile = core.getInput('task-definition', { required: true });
 
-    const service = `${core.getInput('service-name', { required: false })}-11`;
-
-    core.debug(`Service Name: ${service}`);
-
+    const serviceName = `${core.getInput('service-name', { required: false })}-11`;
 
     const serviceDesiredCount = parseInt(core.getInput('service-desired-count', { required: false }));
     const serviceEnableExecuteCommandInput = core.getInput('service-enable-execute-command', { required: false });
@@ -587,6 +655,7 @@ async function run() {
     const codeDeployListenerArn = core.getInput('codedeploy-listener-arn', { required: false });
     const codeDeployLoadBalancerArn = core.getInput('codedeploy-load-balancer-arn', { required: false });
     const codeDeployClusterName = core.getInput('codedeploy-cluster-name', { required: false });
+    const codeDeployAppSpecFile = core.getInput('codedeploy-appspec', { required : false }) || 'appspec.yaml';
 
     const codeDeployRoleArn = core.getInput('codedeploy-role-arn', { required: false });
 
@@ -600,53 +669,19 @@ async function run() {
     const forceNewDeployInput = core.getInput('force-new-deployment', { required: false }) || 'false';
     const forceNewDeployment = forceNewDeployInput.toLowerCase() === 'true';
 
-    // Register the task definition
-    core.debug('Registering the task definition');
-    const taskDefPath = path.isAbsolute(taskDefinitionFile) ?
-      taskDefinitionFile :
-      path.join(process.env.GITHUB_WORKSPACE, taskDefinitionFile);
-    const fileContents = fs.readFileSync(taskDefPath, 'utf8');
-    const taskDefContents = maintainValidObjects(removeIgnoredAttributes(cleanNullKeys(yaml.parse(fileContents))));
-    let registerResponse;
-    try {
-      registerResponse = await ecs.registerTaskDefinition(taskDefContents).promise();
-    } catch (error) {
-      core.setFailed("Failed to register task definition in ECS: " + error.message);
-      core.debug("Task definition contents:");
-      core.debug(JSON.stringify(taskDefContents, undefined, 4));
-      throw(error);
-    }
-    const taskDefArn = registerResponse.taskDefinition.taskDefinitionArn;
-    core.setOutput('task-definition-arn', taskDefArn);
+    const taskDefArn = await registerTaskDefinition(ecs, taskDefinitionFile);
 
-    // Update the service with the new task definition
-    if (service) {
-      const clusterName = cluster ? cluster : 'default';
+    const clusterName = cluster ? cluster : 'default';
 
-      let serviceResponse = await describeServiceIfExists(ecs, service, clusterName, false);
+    const service = await createServiceIfMissing(ecs, elbv2, ec2, serviceName, clusterName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, codeDeployBlueTargetGroupArn, serviceSubnets)
 
-      // if (!serviceResponse) {
-        core.debug("Existing service not found. Create new service.");
-        await createEcsService(ecs, elbv2, ec2, clusterName, service, taskDefArn, waitForService, waitForMinutes, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, codeDeployBlueTargetGroupArn, serviceSubnets);
-        serviceResponse = await describeServiceIfExists(ecs, service, clusterName, true);
-      // } else if (serviceResponse.status != 'ACTIVE') {
-      //   throw new Error(`Service is ${serviceResponse.status}`);
-      // }
-
-      // if (!serviceResponse.deploymentController) {
-      //   // Service uses the 'ECS' deployment controller, so we can call UpdateService
-      //   await updateEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, forceNewDeployment);
-      // } else if (serviceResponse.deploymentController.type == 'CODE_DEPLOY') {
-        // Service uses CodeDeploy, so we should start a CodeDeploy deployment
-
-        await createCodeDeployApplication(codedeploy, service);
-        await createCodeDeployDeploymentGroup(codedeploy, service, service, codeDeployRoleArn, codeDeployClusterName, service, serviceResponse.loadBalancers[0].loadBalancerName, codeDeployBlueTargetGroupName, codeDeployGreenTargetGroupName, codeDeployListenerArn);
-        await createCodeDeployDeployment(codedeploy, codeDeployClusterName, service, taskDefArn, waitForService, waitForMinutes);
-      // } else {
-      //   throw new Error(`Unsupported deployment controller: ${serviceResponse.deploymentController.type}`);
-      // }
+    if (!service.deploymentController) {
+      // Service uses the 'ECS' deployment controller, so we can call UpdateService
+      await updateEcsService(ecs, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, forceNewDeployment);
+    } else if (service.deploymentController.type === 'CODE_DEPLOY') {
+      await performCodeDeployDeployment(codedeploy, serviceName, codeDeployAppSpecFile, taskDefArn, codeDeployRoleArn, codeDeployClusterName, codeDeployBlueTargetGroupName, codeDeployGreenTargetGroupName, codeDeployListenerArn, waitForService, waitForMinutes);
     } else {
-      core.debug('Service was not specified, no service updated');
+      throw new Error(`Unsupported deployment controller: ${service.deploymentController.type}`);
     }
   }
   catch (error) {
@@ -661,11 +696,3 @@ module.exports = run;
 if (require.main === module) {
     run();
 }
-
-// if (require.main === module) {
-//   const ecs = new aws.ECS({
-//     customUserAgent: 'amazon-ecs-deploy-task-definition-for-github-actions'
-//   });
-//
-//   waitForServiceStability(ecs, 'zeus-geored-webapp-pr-351-2', 'zeus-geored-webapp-pr-351-ecs-us-east-2-cluster7C2BBDA8-m6H6xDvYk7kz', 30);
-// }
