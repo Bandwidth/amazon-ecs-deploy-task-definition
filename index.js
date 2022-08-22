@@ -480,10 +480,10 @@ async function createCodeDeployDeploymentGroup(codedeploy, applicationName, depl
           },
           targetGroups: [
             {
-              name: targetGroupsInfo.blueTargetGroupInfo.targetGroupName
+              name: targetGroupsInfo.blueTargetGroupInfo.TargetGroupName
             },
             {
-              name: targetGroupsInfo.greenTargetGroupInfo.targetGroupName
+              name: targetGroupsInfo.greenTargetGroupInfo.TargetGroupName
             }
           ],
         },
