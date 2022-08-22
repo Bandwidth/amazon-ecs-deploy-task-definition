@@ -408,7 +408,7 @@ async function determineBlueAndGreenTargetGroup(elbv2, targetGroupArns) {
   let greenTargetGroupInfo;
 
   core.debug("Determining which target group is Blue/Green");
-  for (const targetGroupArn in targetGroupArns) {
+  for (const targetGroupArn of targetGroupArns) {
     const targetGroupInfo = await describeTargetGroup(elbv2, targetGroupArn);
 
     core.debug(JSON.stringify(targetGroupInfo))
