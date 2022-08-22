@@ -411,8 +411,6 @@ async function determineBlueAndGreenTargetGroup(elbv2, targetGroupArns) {
   for (const targetGroupArn of targetGroupArns) {
     const targetGroupInfo = await describeTargetGroup(elbv2, targetGroupArn);
 
-    core.debug(JSON.stringify(targetGroupInfo))
-
     // if the target group is being used
     if (targetGroupInfo.LoadBalancerArns.length > 0) {
       if (blueTargetGroupInfo) {
@@ -420,7 +418,6 @@ async function determineBlueAndGreenTargetGroup(elbv2, targetGroupArns) {
       }
       blueTargetGroupInfo = targetGroupInfo;
     } else {
-      core.debug(`Green Target Group ${greenTargetGroupInfo}`);
       if (greenTargetGroupInfo) {
         throw new Error("Neither target group is in use! A Blue/Green Deployment requires that traffic is being served first")
       }
@@ -428,14 +425,10 @@ async function determineBlueAndGreenTargetGroup(elbv2, targetGroupArns) {
     }
   }
 
-  const results = {
+  return {
     blueTargetGroupInfo: blueTargetGroupInfo,
     greenTargetGroupInfo: greenTargetGroupInfo,
   };
-
-  core.debug(JSON.stringify(results));
-
-  return results;
 }
 
 async function createCodeDeployDeploymentGroup(codedeploy, applicationName, deploymentGroupName, serviceRoleArn, clusterName, serviceName, targetGroupsInfo, listenerArn) {
@@ -721,7 +714,7 @@ async function run() {
 
     const targetGroupsInfo = await determineBlueAndGreenTargetGroup(elbv2, targetGroupArns);
 
-    const service = await createServiceIfMissing(ecs, elbv2, ec2, serviceName, clusterName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, targetGroupsInfo.blueTargetGroupInfo.targetGroupArn, serviceSubnets)
+    const service = await createServiceIfMissing(ecs, elbv2, ec2, serviceName, clusterName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, targetGroupsInfo.blueTargetGroupInfo.TargetGroupArn, serviceSubnets)
 
     if (!service.deploymentController) {
       // Service uses the 'ECS' deployment controller, so we can call UpdateService
