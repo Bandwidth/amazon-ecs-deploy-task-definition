@@ -359,7 +359,6 @@ async function doesCodeDeployApplicationExist(codedeploy, applicationName) {
 
   try {
     const response = await codedeploy.getApplication(params).promise();
-    core.debug(JSON.stringify(response));
     if (response.application.applicationId) {
       return true;
     }
@@ -397,13 +396,15 @@ async function doesCodeDeployDeploymentGroupExist(codedeploy, applicationName, d
     deploymentGroupName: deploymentGroupName,
   };
 
-  const response = await codedeploy.getDeploymentGroup(params).promise();
-
-  if (response.deploymentGroupInfo.deploymentGroupName){
-    return true;
+  try {
+    const response = await codedeploy.getDeploymentGroup(params).promise();
+    if (response.deploymentGroupInfo.deploymentGroupName) {
+      return true;
+    }
+    return false;
+  } catch (error) {
+    return false;
   }
-
-  return false;
 }
 
 
