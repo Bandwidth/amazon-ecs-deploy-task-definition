@@ -420,6 +420,7 @@ async function determineBlueAndGreenTargetGroup(elbv2, targetGroupArns) {
       }
       blueTargetGroupInfo = targetGroupInfo;
     } else {
+      core.debug(`Green Target Group ${greenTargetGroupInfo}`);
       if (greenTargetGroupInfo !== null) {
         throw new Error("Neither target group is in use! A Blue/Green Deployment requires that traffic is being served first")
       }
