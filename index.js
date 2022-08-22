@@ -357,12 +357,16 @@ async function doesCodeDeployApplicationExist(codedeploy, applicationName) {
     applicationName: applicationName,
   };
 
-  const response = await codedeploy.getApplication(params).promise();
-  if (response.application.applicationId) {
-    return true;
+  try {
+    const response = await codedeploy.getApplication(params).promise();
+    core.debug(JSON.stringify(response));
+    if (response.application.applicationId) {
+      return true;
+    }
+    return false;
+  } catch (error) {
+    return false;
   }
-
-  return false;
 }
 
 async function createCodeDeployApplication(codedeploy, applicationName) {
