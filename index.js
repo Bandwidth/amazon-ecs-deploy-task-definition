@@ -329,6 +329,17 @@ function validateProxyConfigurations(taskDef){
   return 'proxyConfiguration' in taskDef && taskDef.proxyConfiguration.type && taskDef.proxyConfiguration.type == 'APPMESH' && taskDef.proxyConfiguration.properties && taskDef.proxyConfiguration.properties.length > 0;
 }
 
+async function describeTargetGroup(elbv2, targetGroupArn) {
+  const params = {
+    TargetGroupArns: [
+      targetGroupArn,
+    ]
+  };
+
+  const response = await elbv2.describeTargetGroups(params).promise();
+  return response.TargetGroups[0];
+}
+
 async function createCodeDeployApplicationIfMissing(codedeploy, applicationName) {
   if (await doesCodeDeployApplicationExist(codedeploy, applicationName)) {
     core.info("Using existing CodeDeploy Application");
@@ -364,14 +375,14 @@ async function createCodeDeployApplication(codedeploy, applicationName) {
   await codedeploy.createApplication(params).promise();
 }
 
-async function createCodeDeployDeploymentGroupIfMissing(codedeploy, applicationName, deploymentGroupName, serviceRoleArn, clusterName, serviceName, blueTargetGroupName, greenTargetGroupName, listenerArn) {
+async function createCodeDeployDeploymentGroupIfMissing(codedeploy, elbv2, applicationName, deploymentGroupName, serviceRoleArn, clusterName, serviceName, targetGroupsInfo, listenerArn) {
   if (await doesCodeDeployDeploymentGroupExist(codedeploy, applicationName, deploymentGroupName)) {
     core.info("Using existing CodeDeploy DeploymentGroup");
     return;
   }
 
   core.info("Creating new CodeDeploy DeploymentGroup");
-  await createCodeDeployDeploymentGroup(codedeploy, applicationName, deploymentGroupName, serviceRoleArn, clusterName, serviceName, blueTargetGroupName, greenTargetGroupName, listenerArn);
+  await createCodeDeployDeploymentGroup(codedeploy, elbv2, applicationName, deploymentGroupName, serviceRoleArn, clusterName, serviceName, targetGroupsInfo, listenerArn);
 }
 
 async function doesCodeDeployDeploymentGroupExist(codedeploy, applicationName, deploymentGroupName) {
@@ -391,8 +402,37 @@ async function doesCodeDeployDeploymentGroupExist(codedeploy, applicationName, d
   return false;
 }
 
-async function createCodeDeployDeploymentGroup(codedeploy, applicationName, deploymentGroupName, serviceRoleArn, clusterName, serviceName, blueTargetGroupName, greenTargetGroupName, listenerArn) {
+
+async function determineBlueAndGreenTargetGroup(elbv2, targetGroupArns) {
+  let blueTargetGroupInfo;
+  let greenTargetGroupInfo;
+
+  for (const targetGroupArn in targetGroupArns) {
+    const targetGroupInfo = await describeTargetGroup(elbv2, targetGroupArn);
+
+    // if the target group is being used
+    if (targetGroupInfo.LoadBalancerArns.length > 0) {
+      if (blueTargetGroupInfo !== null) {
+        throw new Error("Both provided target groups are in active use! Cannot use them for a Blue/Green Deployment");
+      }
+      blueTargetGroupInfo = targetGroupInfo;
+    } else {
+      if (greenTargetGroupInfo !== null) {
+        throw new Error("Neither target group is in use! A Blue/Green Deployment requires that traffic is being served first")
+      }
+      greenTargetGroupInfo = targetGroupInfo;
+    }
+  }
+
+  return {
+    blueTargetGroupInfo: blueTargetGroupInfo,
+    greenTargetGroupInfo: greenTargetGroupInfo,
+  }
+}
+
+async function createCodeDeployDeploymentGroup(codedeploy, elbv2, applicationName, deploymentGroupName, serviceRoleArn, clusterName, serviceName, targetGroupsInfo, listenerArn) {
   core.debug("Creating code deploy deployment group");
+
   const params = {
     applicationName: applicationName,
     deploymentGroupName: deploymentGroupName,
@@ -434,10 +474,10 @@ async function createCodeDeployDeploymentGroup(codedeploy, applicationName, depl
           },
           targetGroups: [
             {
-              name: blueTargetGroupName
+              name: targetGroupsInfo[0].name
             },
             {
-              name: greenTargetGroupName
+              name: targetGroupsInfo[1].name
             }
           ],
         },
@@ -609,9 +649,9 @@ async function createServiceIfMissing(ecs, elbv2, ec2, serviceName, clusterName,
   return serviceResponse;
 }
 
-async function performCodeDeployDeployment(codedeploy, serviceName, appSpecFilePath, taskDefArn, codeDeployRoleArn, codeDeployClusterName, codeDeployBlueTargetGroupName, codeDeployGreenTargetGroupName, codeDeployListenerArn, waitForService, waitForMinutes) {
+async function performCodeDeployDeployment(codedeploy, elbv2, serviceName, appSpecFilePath, taskDefArn, deployRoleArn, clusterName, targetGroupsInfo, listenerArn, waitForService, waitForMinutes) {
   await createCodeDeployApplicationIfMissing(codedeploy, serviceName);
-  await createCodeDeployDeploymentGroupIfMissing(codedeploy, serviceName, serviceName, codeDeployRoleArn, codeDeployClusterName, serviceName, codeDeployBlueTargetGroupName, codeDeployGreenTargetGroupName, codeDeployListenerArn);
+  await createCodeDeployDeploymentGroupIfMissing(codedeploy, elbv2, serviceName, serviceName, deployRoleArn, clusterName, serviceName, targetGroupsInfo, listenerArn);
   await createCodeDeployDeployment(codedeploy, serviceName, appSpecFilePath, taskDefArn, waitForService, waitForMinutes);
 }
 
@@ -625,9 +665,7 @@ async function run() {
     });
     const ec2 = new aws.EC2({
       customUserAgent: 'amazon-ec2-deploy-task-definition-for-github-actions',
-
     });
-
     const codedeploy = new aws.CodeDeploy({
       customUserAgent: 'amazon-codedeploy-deploy-task-definition-for-github-actions'
     });
@@ -649,9 +687,6 @@ async function run() {
     const newServiceUseCodeDeployInput = core.getInput('new-service-use-codedeploy', { required: false });
     const newServiceUseCodeDeploy = newServiceUseCodeDeployInput.toLowerCase() === 'true';
 
-    const codeDeployBlueTargetGroupName = core.getInput('codedeploy-blue-target-group-name', { required: false });
-    const codeDeployBlueTargetGroupArn = core.getInput('codedeploy-blue-target-group-arn', { required: false });
-    const codeDeployGreenTargetGroupName = core.getInput('codedeploy-green-target-group-name', { required: false });
     const codeDeployListenerArn = core.getInput('codedeploy-listener-arn', { required: false });
     const codeDeployLoadBalancerArn = core.getInput('codedeploy-load-balancer-arn', { required: false });
     const codeDeployClusterName = core.getInput('codedeploy-cluster-name', { required: false });
@@ -659,10 +694,13 @@ async function run() {
 
     const codeDeployRoleArn = core.getInput('codedeploy-role-arn', { required: false });
 
+    const targetGroupArns = core.getInput('target-group-arns').split(',');
+
     const cluster = core.getInput('cluster', { required: false });
     const waitForService = core.getInput('wait-for-service-stability', { required: false });
     let waitForMinutes = parseInt(core.getInput('wait-for-minutes', { required: false })) || 30;
     if (waitForMinutes > MAX_WAIT_MINUTES) {
+      core.warning(`Max wait time cannot be greater than ${MAX_WAIT_MINUTES} minutes. Using ${MAX_WAIT_MINUTES} instead`);
       waitForMinutes = MAX_WAIT_MINUTES;
     }
 
@@ -673,13 +711,15 @@ async function run() {
 
     const clusterName = cluster ? cluster : 'default';
 
-    const service = await createServiceIfMissing(ecs, elbv2, ec2, serviceName, clusterName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, codeDeployBlueTargetGroupArn, serviceSubnets)
+    const targetGroupsInfo = await determineBlueAndGreenTargetGroup(elbv2, targetGroupArns);
+
+    const service = await createServiceIfMissing(ecs, elbv2, ec2, serviceName, clusterName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, targetGroupsInfo.blueTargetGroupInfo.targetGroupArn, serviceSubnets)
 
     if (!service.deploymentController) {
       // Service uses the 'ECS' deployment controller, so we can call UpdateService
       await updateEcsService(ecs, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, forceNewDeployment);
     } else if (service.deploymentController.type === 'CODE_DEPLOY') {
-      await performCodeDeployDeployment(codedeploy, serviceName, codeDeployAppSpecFile, taskDefArn, codeDeployRoleArn, codeDeployClusterName, codeDeployBlueTargetGroupName, codeDeployGreenTargetGroupName, codeDeployListenerArn, waitForService, waitForMinutes);
+      await performCodeDeployDeployment(codedeploy, elbv2, serviceName, codeDeployAppSpecFile, taskDefArn, codeDeployRoleArn, codeDeployClusterName, targetGroupsInfo, codeDeployListenerArn, waitForService, waitForMinutes);
     } else {
       throw new Error(`Unsupported deployment controller: ${service.deploymentController.type}`);
     }
