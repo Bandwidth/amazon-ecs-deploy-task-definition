@@ -661,73 +661,168 @@ async function performCodeDeployDeployment(codedeploy, serviceName, appSpecFileP
   await createCodeDeployDeployment(codedeploy, serviceName, appSpecFilePath, taskDefArn, waitForService, waitForMinutes);
 }
 
+async function createOrUpdate(ecs, elbv2, ec2, codedeploy) {
+  // Get inputs
+  const taskDefinitionFile = core.getInput('task-definition', { required: true });
+
+  const serviceName = `${core.getInput('service-name', { required: false })}-11`;
+
+  const serviceDesiredCount = parseInt(core.getInput('service-desired-count', { required: false }));
+  const serviceEnableExecuteCommandInput = core.getInput('service-enable-execute-command', { required: false });
+  const serviceEnableExecuteCommand = serviceEnableExecuteCommandInput.toLowerCase() === 'true';
+  const serviceHealthCheckGracePeriodSeconds = parseInt(core.getInput('service-health-check-grace-period-seconds', { required: false }));
+  const servicePropagateTags = core.getInput('service-propagate-tags', { required: false });
+  const serviceMinHealthyPercentage = parseInt(core.getInput('service-min-healthy-percentage', { required: false }));
+  const serviceSubnets = core.getInput('service-subnets').split(',');
+
+
+  const newServiceUseCodeDeployInput = core.getInput('new-service-use-codedeploy', { required: false });
+  const newServiceUseCodeDeploy = newServiceUseCodeDeployInput.toLowerCase() === 'true';
+
+  const codeDeployListenerArn = core.getInput('codedeploy-listener-arn', { required: false });
+  const codeDeployLoadBalancerArn = core.getInput('codedeploy-load-balancer-arn', { required: false });
+  const codeDeployClusterName = core.getInput('codedeploy-cluster-name', { required: false });
+  const codeDeployAppSpecFile = core.getInput('codedeploy-appspec', { required : false }) || 'appspec.yaml';
+
+  const codeDeployRoleArn = core.getInput('codedeploy-role-arn', { required: false });
+
+  const targetGroupArns = core.getInput('target-group-arns').split(',');
+
+  const cluster = core.getInput('cluster', { required: false });
+  const waitForService = core.getInput('wait-for-service-stability', { required: false });
+  let waitForMinutes = parseInt(core.getInput('wait-for-minutes', { required: false })) || 30;
+  if (waitForMinutes > MAX_WAIT_MINUTES) {
+    core.warning(`Max wait time cannot be greater than ${MAX_WAIT_MINUTES} minutes. Using ${MAX_WAIT_MINUTES} instead`);
+    waitForMinutes = MAX_WAIT_MINUTES;
+  }
+
+  const forceNewDeployInput = core.getInput('force-new-deployment', { required: false }) || 'false';
+  const forceNewDeployment = forceNewDeployInput.toLowerCase() === 'true';
+
+  const taskDefArn = await registerTaskDefinition(ecs, taskDefinitionFile);
+
+  const clusterName = cluster ? cluster : 'default';
+
+  const targetGroupsInfo = await determineBlueAndGreenTargetGroup(elbv2, targetGroupArns);
+
+  const service = await createServiceIfMissing(ecs, elbv2, ec2, serviceName, clusterName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, targetGroupsInfo.blueTargetGroupInfo.TargetGroupArn, serviceSubnets)
+
+  if (!service.deploymentController) {
+    // Service uses the 'ECS' deployment controller, so we can call UpdateService
+    await updateEcsService(ecs, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, forceNewDeployment);
+  } else if (service.deploymentController.type === 'CODE_DEPLOY') {
+    await performCodeDeployDeployment(codedeploy, serviceName, codeDeployAppSpecFile, taskDefArn, codeDeployRoleArn, codeDeployClusterName, targetGroupsInfo, codeDeployListenerArn, waitForService, waitForMinutes);
+  } else {
+    throw new Error(`Unsupported deployment controller: ${service.deploymentController.type}`);
+  }
+}
+
+async function revokeLoadBalancerEgressToSecurityGroup(ec2, securityGroup, securityGroupToEgressTo, fromPort, toPort) {
+  core.info("Revoking Load Balancer Egress to Security Group");
+  const params = {
+    GroupId: securityGroup,
+    IpPermissions: [
+      {
+        FromPort: fromPort,
+        IpProtocol: "tcp",
+        UserIdGroupPairs: [
+          {
+            Description: "HTTP access to other security group",
+            GroupId: securityGroupToEgressTo,
+          }
+        ],
+        ToPort: toPort,
+      }
+    ]
+  };
+
+  core.debug(JSON.stringify(params));
+  await ec2.revokeSecurityGroupEgress(params).promise();
+}
+
+async function deregisterTaskDefinition(ecs, taskDefinition) {
+  core.info("Deregistering Task Definition");
+  const params = {
+    taskDefinition: taskDefinition,
+  };
+  core.debug(JSON.stringify(params));
+  await ecs.deregisterTaskDefinition(params).promise();
+}
+
+async function removeSecurityGroup(ec2, groupName, vpcId) {
+  core.info("Deleting Security Group");
+  const existingSecurityGroup = await describeSecurityGroup(ec2, groupName, vpcId);
+
+  const params = {
+    GroupId: existingSecurityGroup.GroupId,
+  };
+
+  core.debug(JSON.stringify(params));
+  await ec2.deleteSecurityGroup(params).promise();
+}
+
+async function removeEcsService(ecs, clusterName, serviceName) {
+  core.info("Remove ECS Service");
+  const params = {
+    cluster: clusterName,
+    service: serviceName,
+  };
+  core.debug(JSON.stringify(params));
+  await ecs.deleteService(params).promise();
+}
+
+async function remove(ecs, elbv2, ec2, codedeploy) {
+  core.info("Beginning Cleanup");
+  const serviceName = `${core.getInput('service-name', { required: false })}-11`;
+  const cluster = core.getInput('cluster', { required: false });
+  const loadBalancerArn = core.getInput('codedeploy-load-balancer-arn', { required: false });
+
+  const serviceInfo = await describeServiceIfExists(ecs,  serviceName, cluster, true);
+  const loadBalancerInfo = await describeLoadBalancer(elbv2, loadBalancerArn);
+
+  const loadBalancerSecurityGroupId = loadBalancerInfo.SecurityGroups[0].GroupId;
+  const serviceSecurityGroupId = serviceInfo.networkConfiguration.awsvpcConfiguration.securityGroups[0];
+
+  await deregisterTaskDefinition(ecs, serviceInfo.taskDefinition);
+  await removeEcsService(ecs, cluster, serviceName);
+
+  await revokeLoadBalancerEgressToSecurityGroup(ec2, loadBalancerSecurityGroupId, serviceSecurityGroupId, 8080, 8080);
+  await revokeLoadBalancerEgressToSecurityGroup(ec2, loadBalancerSecurityGroupId, serviceSecurityGroupId, 8125, 8125);
+  await revokeLoadBalancerEgressToSecurityGroup(ec2, loadBalancerSecurityGroupId, serviceSecurityGroupId, 8126, 8126);
+
+  await removeSecurityGroup(ec2, `load-balancer-to-${serviceName}`, loadBalancerInfo.VpcId);
+
+  // Maybe Leave these:
+  //-----------------------
+  // code deploy application
+  // code deploy deployment group
+
+}
+
 async function run() {
+  // my hack before we make this a custom resource
+  const operation = core.getInput('operation', {required: true});
+
+  const ecs = new aws.ECS({
+    customUserAgent: 'amazon-ecs-deploy-task-definition-for-github-actions'
+  });
+  const elbv2 = new aws.ELBv2({
+    customUserAgent: 'amazon-elbv2-deploy-task-definition-for-github-actions'
+  });
+  const ec2 = new aws.EC2({
+    customUserAgent: 'amazon-ec2-deploy-task-definition-for-github-actions',
+  });
+  const codedeploy = new aws.CodeDeploy({
+    customUserAgent: 'amazon-codedeploy-deploy-task-definition-for-github-actions'
+  });
+
   try {
-    const ecs = new aws.ECS({
-      customUserAgent: 'amazon-ecs-deploy-task-definition-for-github-actions'
-    });
-    const elbv2 = new aws.ELBv2({
-      customUserAgent: 'amazon-elbv2-deploy-task-definition-for-github-actions'
-    });
-    const ec2 = new aws.EC2({
-      customUserAgent: 'amazon-ec2-deploy-task-definition-for-github-actions',
-    });
-    const codedeploy = new aws.CodeDeploy({
-      customUserAgent: 'amazon-codedeploy-deploy-task-definition-for-github-actions'
-    });
-
-    // Get inputs
-    const taskDefinitionFile = core.getInput('task-definition', { required: true });
-
-    const serviceName = `${core.getInput('service-name', { required: false })}-11`;
-
-    const serviceDesiredCount = parseInt(core.getInput('service-desired-count', { required: false }));
-    const serviceEnableExecuteCommandInput = core.getInput('service-enable-execute-command', { required: false });
-    const serviceEnableExecuteCommand = serviceEnableExecuteCommandInput.toLowerCase() === 'true';
-    const serviceHealthCheckGracePeriodSeconds = parseInt(core.getInput('service-health-check-grace-period-seconds', { required: false }));
-    const servicePropagateTags = core.getInput('service-propagate-tags', { required: false });
-    const serviceMinHealthyPercentage = parseInt(core.getInput('service-min-healthy-percentage', { required: false }));
-    const serviceSubnets = core.getInput('service-subnets').split(',');
-
-
-    const newServiceUseCodeDeployInput = core.getInput('new-service-use-codedeploy', { required: false });
-    const newServiceUseCodeDeploy = newServiceUseCodeDeployInput.toLowerCase() === 'true';
-
-    const codeDeployListenerArn = core.getInput('codedeploy-listener-arn', { required: false });
-    const codeDeployLoadBalancerArn = core.getInput('codedeploy-load-balancer-arn', { required: false });
-    const codeDeployClusterName = core.getInput('codedeploy-cluster-name', { required: false });
-    const codeDeployAppSpecFile = core.getInput('codedeploy-appspec', { required : false }) || 'appspec.yaml';
-
-    const codeDeployRoleArn = core.getInput('codedeploy-role-arn', { required: false });
-
-    const targetGroupArns = core.getInput('target-group-arns').split(',');
-
-    const cluster = core.getInput('cluster', { required: false });
-    const waitForService = core.getInput('wait-for-service-stability', { required: false });
-    let waitForMinutes = parseInt(core.getInput('wait-for-minutes', { required: false })) || 30;
-    if (waitForMinutes > MAX_WAIT_MINUTES) {
-      core.warning(`Max wait time cannot be greater than ${MAX_WAIT_MINUTES} minutes. Using ${MAX_WAIT_MINUTES} instead`);
-      waitForMinutes = MAX_WAIT_MINUTES;
-    }
-
-    const forceNewDeployInput = core.getInput('force-new-deployment', { required: false }) || 'false';
-    const forceNewDeployment = forceNewDeployInput.toLowerCase() === 'true';
-
-    const taskDefArn = await registerTaskDefinition(ecs, taskDefinitionFile);
-
-    const clusterName = cluster ? cluster : 'default';
-
-    const targetGroupsInfo = await determineBlueAndGreenTargetGroup(elbv2, targetGroupArns);
-
-    const service = await createServiceIfMissing(ecs, elbv2, ec2, serviceName, clusterName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, targetGroupsInfo.blueTargetGroupInfo.TargetGroupArn, serviceSubnets)
-
-    if (!service.deploymentController) {
-      // Service uses the 'ECS' deployment controller, so we can call UpdateService
-      await updateEcsService(ecs, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, forceNewDeployment);
-    } else if (service.deploymentController.type === 'CODE_DEPLOY') {
-      await performCodeDeployDeployment(codedeploy, serviceName, codeDeployAppSpecFile, taskDefArn, codeDeployRoleArn, codeDeployClusterName, targetGroupsInfo, codeDeployListenerArn, waitForService, waitForMinutes);
+    if (operation === "createOrUpdate") {
+      await createOrUpdate(ecs, elbv2, ec2, codedeploy);
+    } else if (operation === "remove") {
+      await remove(ecs, elbv2, ec2, codedeploy);
     } else {
-      throw new Error(`Unsupported deployment controller: ${service.deploymentController.type}`);
+      throw new Error(`Invalid operation: ${operation}`);
     }
   }
   catch (error) {
