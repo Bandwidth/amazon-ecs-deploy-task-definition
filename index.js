@@ -375,14 +375,14 @@ async function createCodeDeployApplication(codedeploy, applicationName) {
   await codedeploy.createApplication(params).promise();
 }
 
-async function createCodeDeployDeploymentGroupIfMissing(codedeploy, elbv2, applicationName, deploymentGroupName, serviceRoleArn, clusterName, serviceName, targetGroupsInfo, listenerArn) {
+async function createCodeDeployDeploymentGroupIfMissing(codedeploy, applicationName, deploymentGroupName, serviceRoleArn, clusterName, serviceName, targetGroupsInfo, listenerArn) {
   if (await doesCodeDeployDeploymentGroupExist(codedeploy, applicationName, deploymentGroupName)) {
     core.info("Using existing CodeDeploy DeploymentGroup");
     return;
   }
 
   core.info("Creating new CodeDeploy DeploymentGroup");
-  await createCodeDeployDeploymentGroup(codedeploy, elbv2, applicationName, deploymentGroupName, serviceRoleArn, clusterName, serviceName, targetGroupsInfo, listenerArn);
+  await createCodeDeployDeploymentGroup(codedeploy, applicationName, deploymentGroupName, serviceRoleArn, clusterName, serviceName, targetGroupsInfo, listenerArn);
 }
 
 async function doesCodeDeployDeploymentGroupExist(codedeploy, applicationName, deploymentGroupName) {
@@ -430,7 +430,7 @@ async function determineBlueAndGreenTargetGroup(elbv2, targetGroupArns) {
   }
 }
 
-async function createCodeDeployDeploymentGroup(codedeploy, elbv2, applicationName, deploymentGroupName, serviceRoleArn, clusterName, serviceName, targetGroupsInfo, listenerArn) {
+async function createCodeDeployDeploymentGroup(codedeploy, applicationName, deploymentGroupName, serviceRoleArn, clusterName, serviceName, targetGroupsInfo, listenerArn) {
   core.debug("Creating code deploy deployment group");
 
   const params = {
@@ -474,10 +474,10 @@ async function createCodeDeployDeploymentGroup(codedeploy, elbv2, applicationNam
           },
           targetGroups: [
             {
-              name: targetGroupsInfo[0].name
+              name: targetGroupsInfo[0].targetGroupName
             },
             {
-              name: targetGroupsInfo[1].name
+              name: targetGroupsInfo[1].targetGroupName
             }
           ],
         },
@@ -649,9 +649,9 @@ async function createServiceIfMissing(ecs, elbv2, ec2, serviceName, clusterName,
   return serviceResponse;
 }
 
-async function performCodeDeployDeployment(codedeploy, elbv2, serviceName, appSpecFilePath, taskDefArn, deployRoleArn, clusterName, targetGroupsInfo, listenerArn, waitForService, waitForMinutes) {
+async function performCodeDeployDeployment(codedeploy, serviceName, appSpecFilePath, taskDefArn, deployRoleArn, clusterName, targetGroupsInfo, listenerArn, waitForService, waitForMinutes) {
   await createCodeDeployApplicationIfMissing(codedeploy, serviceName);
-  await createCodeDeployDeploymentGroupIfMissing(codedeploy, elbv2, serviceName, serviceName, deployRoleArn, clusterName, serviceName, targetGroupsInfo, listenerArn);
+  await createCodeDeployDeploymentGroupIfMissing(codedeploy, serviceName, serviceName, deployRoleArn, clusterName, serviceName, targetGroupsInfo, listenerArn);
   await createCodeDeployDeployment(codedeploy, serviceName, appSpecFilePath, taskDefArn, waitForService, waitForMinutes);
 }
 
@@ -719,7 +719,7 @@ async function run() {
       // Service uses the 'ECS' deployment controller, so we can call UpdateService
       await updateEcsService(ecs, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, forceNewDeployment);
     } else if (service.deploymentController.type === 'CODE_DEPLOY') {
-      await performCodeDeployDeployment(codedeploy, elbv2, serviceName, codeDeployAppSpecFile, taskDefArn, codeDeployRoleArn, codeDeployClusterName, targetGroupsInfo, codeDeployListenerArn, waitForService, waitForMinutes);
+      await performCodeDeployDeployment(codedeploy, serviceName, codeDeployAppSpecFile, taskDefArn, codeDeployRoleArn, codeDeployClusterName, targetGroupsInfo, codeDeployListenerArn, waitForService, waitForMinutes);
     } else {
       throw new Error(`Unsupported deployment controller: ${service.deploymentController.type}`);
     }
