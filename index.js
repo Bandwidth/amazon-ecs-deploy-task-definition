@@ -407,8 +407,11 @@ async function determineBlueAndGreenTargetGroup(elbv2, targetGroupArns) {
   let blueTargetGroupInfo;
   let greenTargetGroupInfo;
 
+  core.debug("Determining which target group is Blue/Green");
   for (const targetGroupArn in targetGroupArns) {
     const targetGroupInfo = await describeTargetGroup(elbv2, targetGroupArn);
+
+    core.debug(JSON.stringify(targetGroupInfo))
 
     // if the target group is being used
     if (targetGroupInfo.LoadBalancerArns.length > 0) {
@@ -424,10 +427,14 @@ async function determineBlueAndGreenTargetGroup(elbv2, targetGroupArns) {
     }
   }
 
-  return {
+  const results = {
     blueTargetGroupInfo: blueTargetGroupInfo,
     greenTargetGroupInfo: greenTargetGroupInfo,
-  }
+  };
+
+  core.debug(JSON.stringify(results));
+
+  return results;
 }
 
 async function createCodeDeployDeploymentGroup(codedeploy, applicationName, deploymentGroupName, serviceRoleArn, clusterName, serviceName, targetGroupsInfo, listenerArn) {
