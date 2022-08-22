@@ -415,13 +415,13 @@ async function determineBlueAndGreenTargetGroup(elbv2, targetGroupArns) {
 
     // if the target group is being used
     if (targetGroupInfo.LoadBalancerArns.length > 0) {
-      if (blueTargetGroupInfo !== null) {
+      if (!blueTargetGroupInfo) {
         throw new Error("Both provided target groups are in active use! Cannot use them for a Blue/Green Deployment");
       }
       blueTargetGroupInfo = targetGroupInfo;
     } else {
       core.debug(`Green Target Group ${greenTargetGroupInfo}`);
-      if (greenTargetGroupInfo !== null) {
+      if (!greenTargetGroupInfo) {
         throw new Error("Neither target group is in use! A Blue/Green Deployment requires that traffic is being served first")
       }
       greenTargetGroupInfo = targetGroupInfo;
