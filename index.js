@@ -127,7 +127,7 @@ async function describeLoadBalancer(elbv2, loadBalancerArn) {
   return response.LoadBalancers[0];
 }
 
-async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName) {
+async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName, ports) {
   core.debug("Create Security Group for LB to Service")
   const loadBalancerInfo = await describeLoadBalancer(elbv2, loadBalancerArn);
   const vpcId = loadBalancerInfo.VpcId;
@@ -144,22 +144,33 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
   core.debug(`Security group ${serviceSecurityGroupName} does not exist, creating new group`);
   const serviceSecurityGroupId = await createNewSecurityGroup(ec2, serviceSecurityGroupName, 'Load balancer to service', vpcId);
 
-  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroupId, 8080, 8080);
-  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroupId, 8125, 8125);
-  await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroupId, 8126, 8126);
-
-  // the load balancer's security group must be updated as well
-  await authorizeEgressToAnotherSecurityGroup(ec2, loadBalancerSecurityGroupId, serviceSecurityGroupId, 8080, 8080);
-  await authorizeEgressToAnotherSecurityGroup(ec2, loadBalancerSecurityGroupId, serviceSecurityGroupId, 8125, 8125);
-  await authorizeEgressToAnotherSecurityGroup(ec2, loadBalancerSecurityGroupId, serviceSecurityGroupId, 8126, 8126);
+  for (const port of ports) {
+    await authorizeIngressFromAnotherSecurityGroup(ec2, serviceSecurityGroupId, loadBalancerSecurityGroupId, port, port);
+    await authorizeEgressToAnotherSecurityGroup(ec2, loadBalancerSecurityGroupId, serviceSecurityGroupId, port, port);
+  }
 
   return serviceSecurityGroupId;
+}
+
+async function getPortsFromTaskDefinition(taskDefinition) {
+  const ports = [];
+
+  for (const container of taskDefinition.containerDefinitions) {
+    for (const portMapping of container.portMappings) {
+      ports.push(portMapping.hostPort);
+    }
+  }
+
+  return ports;
 }
 
 async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskDefArn, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy, loadBalancerArn, targetGroupArn, subnets) {
   let params;
 
-  const sgId = await createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName);
+  const taskDefinition = await getTaskDefinition(ecs, taskDefArn);
+  const ports = getPortsFromTaskDefinition(taskDefinition);
+
+  const sgId = await createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName, ports);
 
   if (enableCodeDeploy) {
     params = {
@@ -219,13 +230,14 @@ async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskD
 }
 
 // Deploy to a service that uses the 'ECS' deployment controller
-async function updateEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, forceNewDeployment) {
+async function updateEcsService(ecs, clusterName, service, taskDefArn, waitForService, waitForMinutes, forceNewDeployment, desiredCount) {
   core.debug('Updating the service');
   await ecs.updateService({
     cluster: clusterName,
     service: service,
     taskDefinition: taskDefArn,
-    forceNewDeployment: forceNewDeployment
+    forceNewDeployment: forceNewDeployment,
+    desiredCount: desiredCount,
   }).promise();
 
   const consoleHostname = aws.config.region.startsWith('cn') ? 'console.amazonaws.cn' : 'console.aws.amazon.com';
@@ -637,6 +649,14 @@ async function registerTaskDefinition(ecs, taskDefinitionFile) {
   return taskDefArn;
 }
 
+async function getTaskDefinition(ecs, taskDefinitionArn) {
+  core.debug("Get task definition");
+  const params = {
+    taskDefinition: taskDefinitionArn,
+  };
+  await ecs.describeTaskDefinition(params).promise();
+}
+
 async function createServiceIfMissing(ecs, elbv2, ec2, serviceName, clusterName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, codeDeployBlueTargetGroupArn, serviceSubnets) {
   let serviceResponse = await describeServiceIfExists(ecs, serviceName, clusterName, false);
 
@@ -696,6 +716,8 @@ async function createOrUpdate(ecs, elbv2, ec2, codedeploy) {
     waitForMinutes = MAX_WAIT_MINUTES;
   }
 
+  const desiredCount = core.getInput('desired-count', {required: false}) || 1;
+
   const forceNewDeployInput = core.getInput('force-new-deployment', { required: false }) || 'false';
   const forceNewDeployment = forceNewDeployInput.toLowerCase() === 'true';
 
@@ -709,8 +731,12 @@ async function createOrUpdate(ecs, elbv2, ec2, codedeploy) {
 
   if (!service.deploymentController) {
     // Service uses the 'ECS' deployment controller, so we can call UpdateService
-    await updateEcsService(ecs, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, forceNewDeployment);
+    await updateEcsService(ecs, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, forceNewDeployment, desiredCount);
   } else if (service.deploymentController.type === 'CODE_DEPLOY') {
+    // the desired count can only be changed by updating ECS, not through CodeDeploy
+    if (service.desiredCount !== desiredCount) {
+      await updateEcsService(ecs, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, false, desiredCount);
+    }
     await performCodeDeployDeployment(codedeploy, serviceName, codeDeployAppSpecFile, taskDefArn, codeDeployRoleArn, codeDeployClusterName, targetGroupsInfo, codeDeployListenerArn, waitForService, waitForMinutes);
   } else {
     throw new Error(`Unsupported deployment controller: ${service.deploymentController.type}`);
@@ -771,6 +797,13 @@ async function removeEcsService(ecs, clusterName, serviceName) {
   await ecs.deleteService(params).promise();
 }
 
+async function removeCodeDeployApplication(codedeploy, applicationName) {
+  const params = {
+    applicationName: applicationName,
+  };
+  await codedeploy.deleteApplication(params).promise();
+}
+
 async function remove(ecs, elbv2, ec2, codedeploy) {
   core.info("Beginning Cleanup");
   const serviceName = `${core.getInput('service-name', { required: false })}-11`;
@@ -792,11 +825,7 @@ async function remove(ecs, elbv2, ec2, codedeploy) {
 
   await removeSecurityGroup(ec2, `load-balancer-to-${serviceName}`, loadBalancerInfo.VpcId);
 
-  // Maybe Leave these:
-  //-----------------------
-  // code deploy application
-  // code deploy deployment group
-
+  await removeCodeDeployApplication(codedeploy, serviceName);
 }
 
 async function run() {
