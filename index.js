@@ -695,7 +695,7 @@ async function createOrUpdate(ecs, elbv2, ec2, codedeploy) {
   // Get inputs
   const taskDefinitionFile = core.getInput('task-definition', { required: true });
 
-  const serviceName = `${core.getInput('service-name', { required: false })}-11`;
+  const serviceName = `${core.getInput('service-name', { required: false })}-12`;
 
   const serviceDesiredCount = parseInt(core.getInput('service-desired-count', { required: false }));
   const serviceEnableExecuteCommandInput = core.getInput('service-enable-execute-command', { required: false });
