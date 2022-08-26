@@ -726,8 +726,6 @@ async function createOrUpdate(ecs, elbv2, ec2, codedeploy) {
     waitForMinutes = MAX_WAIT_MINUTES;
   }
 
-  const desiredCount = core.getInput('desired-count', {required: false}) || 1;
-
   const forceNewDeployInput = core.getInput('force-new-deployment', { required: false }) || 'false';
   const forceNewDeployment = forceNewDeployInput.toLowerCase() === 'true';
 
@@ -743,11 +741,11 @@ async function createOrUpdate(ecs, elbv2, ec2, codedeploy) {
 
   if (!service.deploymentController) {
     // Service uses the 'ECS' deployment controller, so we can call UpdateService
-    await updateEcsService(ecs, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, forceNewDeployment, desiredCount);
+    await updateEcsService(ecs, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, forceNewDeployment, serviceDesiredCount);
   } else if (service.deploymentController.type === 'CODE_DEPLOY') {
     // the desired count can only be changed by updating ECS, not through CodeDeploy
-    if (service.desiredCount !== desiredCount) {
-      await updateEcsService(ecs, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, false, desiredCount);
+    if (service.desiredCount !== serviceDesiredCount) {
+      await updateEcsService(ecs, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, false, serviceDesiredCount);
     }
     await performCodeDeployDeployment(codedeploy, serviceName, codeDeployAppSpecFile, taskDefArn, codeDeployRoleArn, codeDeployClusterName, targetGroupsInfo, codeDeployListenerArn, waitForService, waitForMinutes);
   } else {
