@@ -164,13 +164,23 @@ async function getPortsFromTaskDefinition(taskDefinition) {
   return ports;
 }
 
-async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskDefArn, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy, loadBalancerArn, targetGroupArn, subnets) {
+function findContainerDefinition(taskDefinition, containerName) {
+  for (const container of taskDefinition.containerDefinitions) {
+    if (container.name === containerName) {
+      return container;
+    }
+  }
+}
+
+async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskDefArn, minimumHealthyPercentage, desiredCount, enableExecuteCommand, healthCheckGracePeriodSeconds, propagateTags, enableCodeDeploy, loadBalancerArn, targetGroupArn, subnets, mainContainerName) {
   let params;
 
   const taskDefinition = await getTaskDefinition(ecs, taskDefArn);
   const ports = getPortsFromTaskDefinition(taskDefinition);
 
   const sgId = await createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName, ports);
+
+  const mainContainer = findContainerDefinition(taskDefinition, mainContainerName);
 
   if (enableCodeDeploy) {
     params = {
@@ -187,8 +197,8 @@ async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskD
       taskDefinition: taskDefArn,
       loadBalancers: [
         {
-          containerName: 'web',
-          containerPort: '8080',
+          containerName: mainContainerName,
+          containerPort: mainContainer.containerPort,
           targetGroupArn: targetGroupArn,
         },
       ],
@@ -657,7 +667,7 @@ async function getTaskDefinition(ecs, taskDefinitionArn) {
   await ecs.describeTaskDefinition(params).promise();
 }
 
-async function createServiceIfMissing(ecs, elbv2, ec2, serviceName, clusterName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, codeDeployBlueTargetGroupArn, serviceSubnets) {
+async function createServiceIfMissing(ecs, elbv2, ec2, serviceName, clusterName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, codeDeployBlueTargetGroupArn, serviceSubnets, mainContainerName) {
   let serviceResponse = await describeServiceIfExists(ecs, serviceName, clusterName, false);
 
   if (serviceResponse && serviceResponse.status !== 'ACTIVE') {
@@ -666,7 +676,7 @@ async function createServiceIfMissing(ecs, elbv2, ec2, serviceName, clusterName,
 
   if (!serviceResponse) {
     core.info("Existing service not found. Create new service.");
-    await createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, codeDeployBlueTargetGroupArn, serviceSubnets);
+    await createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, codeDeployBlueTargetGroupArn, serviceSubnets, mainContainerName);
     serviceResponse = await describeServiceIfExists(ecs, serviceName, clusterName, true);
   } else {
     core.info("Using existing service");
@@ -723,11 +733,13 @@ async function createOrUpdate(ecs, elbv2, ec2, codedeploy) {
 
   const taskDefArn = await registerTaskDefinition(ecs, taskDefinitionFile);
 
+  const mainContainerName = core.getInput('main-container-name', {required: false}) || 'web';
+
   const clusterName = cluster ? cluster : 'default';
 
   const targetGroupsInfo = await determineBlueAndGreenTargetGroup(elbv2, targetGroupArns);
 
-  const service = await createServiceIfMissing(ecs, elbv2, ec2, serviceName, clusterName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, targetGroupsInfo.blueTargetGroupInfo.TargetGroupArn, serviceSubnets)
+  const service = await createServiceIfMissing(ecs, elbv2, ec2, serviceName, clusterName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, targetGroupsInfo.blueTargetGroupInfo.TargetGroupArn, serviceSubnets, mainContainerName)
 
   if (!service.deploymentController) {
     // Service uses the 'ECS' deployment controller, so we can call UpdateService
@@ -816,12 +828,15 @@ async function remove(ecs, elbv2, ec2, codedeploy) {
   const loadBalancerSecurityGroupId = loadBalancerInfo.SecurityGroups[0].GroupId;
   const serviceSecurityGroupId = serviceInfo.networkConfiguration.awsvpcConfiguration.securityGroups[0];
 
+  const taskDefinition = await getTaskDefinition(ecs, serviceInfo.taskDefinition);
+
   await deregisterTaskDefinition(ecs, serviceInfo.taskDefinition);
   await removeEcsService(ecs, cluster, serviceName);
 
-  await revokeLoadBalancerEgressToSecurityGroup(ec2, loadBalancerSecurityGroupId, serviceSecurityGroupId, 8080, 8080);
-  await revokeLoadBalancerEgressToSecurityGroup(ec2, loadBalancerSecurityGroupId, serviceSecurityGroupId, 8125, 8125);
-  await revokeLoadBalancerEgressToSecurityGroup(ec2, loadBalancerSecurityGroupId, serviceSecurityGroupId, 8126, 8126);
+  const ports = getPortsFromTaskDefinition(taskDefinition);
+  for (const port of ports) {
+    await revokeLoadBalancerEgressToSecurityGroup(ec2, loadBalancerSecurityGroupId, serviceSecurityGroupId, port, port);
+  }
 
   await removeSecurityGroup(ec2, `load-balancer-to-${serviceName}`, loadBalancerInfo.VpcId);
 
