@@ -165,8 +165,10 @@ function getPortsFromTaskDefinition(taskDefinition) {
 }
 
 function findContainerDefinition(taskDefinition, containerName) {
+  core.debug(`Task def: ${JSON.stringify(taskDefinition)}`);
   for (const container of taskDefinition.containerDefinitions) {
     if (container.name === containerName) {
+      core.debug("returning container");
       return container;
     }
   }
@@ -177,8 +179,6 @@ async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskD
 
   const taskDefinition = await getTaskDefinition(ecs, taskDefArn);
   const ports = getPortsFromTaskDefinition(taskDefinition);
-
-  core.debug(`ports: ${ports}`);
 
   const sgId = await createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName, ports);
 
