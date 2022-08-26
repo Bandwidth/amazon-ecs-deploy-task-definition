@@ -152,7 +152,7 @@ async function createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalan
   return serviceSecurityGroupId;
 }
 
-async function getPortsFromTaskDefinition(taskDefinition) {
+function getPortsFromTaskDefinition(taskDefinition) {
   const ports = [];
 
   for (const container of taskDefinition.containerDefinitions) {
