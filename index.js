@@ -178,6 +178,8 @@ async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskD
   const taskDefinition = await getTaskDefinition(ecs, taskDefArn);
   const ports = getPortsFromTaskDefinition(taskDefinition);
 
+  core.debug(`ports: ${ports}`);
+
   const sgId = await createSecurityGroupForLoadBalancerToService(ec2, elbv2, loadBalancerArn, serviceName, ports);
 
   const mainContainer = findContainerDefinition(taskDefinition, mainContainerName);
