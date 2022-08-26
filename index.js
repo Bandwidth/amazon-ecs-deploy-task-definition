@@ -165,10 +165,8 @@ function getPortsFromTaskDefinition(taskDefinition) {
 }
 
 function findContainerDefinition(taskDefinition, containerName) {
-  core.debug(`Task def: ${JSON.stringify(taskDefinition)}`);
   for (const container of taskDefinition.containerDefinitions) {
     if (container.name === containerName) {
-      core.debug("returning container");
       return container;
     }
   }
@@ -200,7 +198,7 @@ async function createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskD
       loadBalancers: [
         {
           containerName: mainContainerName,
-          containerPort: mainContainer.containerPort,
+          containerPort: mainContainer.portMappings[0].hostPort,
           targetGroupArn: targetGroupArn,
         },
       ],
