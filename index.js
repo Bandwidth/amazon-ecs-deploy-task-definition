@@ -664,7 +664,8 @@ async function getTaskDefinition(ecs, taskDefinitionArn) {
   const params = {
     taskDefinition: taskDefinitionArn,
   };
-  await ecs.describeTaskDefinition(params).promise();
+  const response = await ecs.describeTaskDefinition(params).promise();
+  return response.taskDefinition;
 }
 
 async function createServiceIfMissing(ecs, elbv2, ec2, serviceName, clusterName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, codeDeployBlueTargetGroupArn, serviceSubnets, mainContainerName) {
