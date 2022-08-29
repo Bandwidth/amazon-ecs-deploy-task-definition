@@ -804,7 +804,13 @@ async function remove(ecs, elbv2, ec2, codedeploy) {
   const cluster = core.getInput('cluster', { required: false });
   const loadBalancerArn = core.getInput('codedeploy-load-balancer-arn', { required: false });
   const serviceInfo = await describeServiceIfExists(ecs,  serviceName, cluster, true);
+
+  core.info(`Service: ${JSON.stringify(serviceInfo)}`);
+
   const loadBalancerInfo = await describeLoadBalancer(elbv2, loadBalancerArn);
+
+  core.info(`LB: ${JSON.stringify(loadBalancerInfo)}`);
+
   const loadBalancerSecurityGroupId = loadBalancerInfo.SecurityGroups[0].GroupId;
   const serviceSecurityGroupId = serviceInfo.networkConfiguration.awsvpcConfiguration.securityGroups[0];
   const taskDefinition = await getTaskDefinition(ecs, serviceInfo.taskDefinition);
