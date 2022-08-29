@@ -259,7 +259,7 @@ async function updateEcsService(ecs, clusterName, service, taskDefArn, waitForSe
   }
 }
 
-async function updateEcsServiceDesiredCountOnly(ecs, clusterName, service, waitForService, waitForMinutes, desiredCount) {
+async function updateEcsServiceDesiredCountOnly(ecs, clusterName, service, desiredCount) {
   core.debug('Updating the code-deploy enabled service');
   await ecs.updateService({
     cluster: clusterName,
@@ -267,13 +267,7 @@ async function updateEcsServiceDesiredCountOnly(ecs, clusterName, service, waitF
     desiredCount: desiredCount,
   }).promise();
 
-  core.info(`Deployment started. Watch this deployment's progress in the Amazon ECS console: https://console.aws.amazon.com/ecs/home?region=${aws.config.region}#/clusters/${clusterName}/services/${service}/events`);
-
-  if (waitForService && waitForService.toLowerCase() === 'true') {
-    await waitForServiceStability(ecs, service, clusterName, waitForMinutes);
-  } else {
-    core.debug('Not waiting for the service to become stable');
-  }
+  // we would want to wait on the desired count being reached, however, waiting waits forever for this api call for some reason
 }
 
 function isEmptyValue(value) {
@@ -742,7 +736,7 @@ async function createOrUpdate(ecs, elbv2, ec2, codedeploy) {
   if (existingService.deploymentController.type === 'CODE_DEPLOY') {
     // the desired count can only be changed by updating ECS, not through CodeDeploy
     if (existingService.desiredCount !== serviceDesiredCount) {
-      await updateEcsServiceDesiredCountOnly(ecs, clusterName, serviceName, waitForService, waitForMinutes, serviceDesiredCount);
+      await updateEcsServiceDesiredCountOnly(ecs, clusterName, serviceName, serviceDesiredCount);
     }
     await performCodeDeployDeployment(codedeploy, serviceName, codeDeployAppSpecFile, taskDefArn, codeDeployRoleArn, codeDeployClusterName, targetGroupsInfo, codeDeployListenerArn, waitForService, waitForMinutes);
     return;
