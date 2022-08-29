@@ -696,7 +696,7 @@ async function createOrUpdate(ecs, elbv2, ec2, codedeploy) {
   // Get inputs
   const taskDefinitionFile = core.getInput('task-definition', { required: true });
 
-  const serviceName = `${core.getInput('service-name', { required: false })}-12`;
+  const serviceName = `${core.getInput('service-name', { required: false })}-13`;
 
   const serviceDesiredCount = parseInt(core.getInput('service-desired-count', { required: false }));
   const serviceEnableExecuteCommandInput = core.getInput('service-enable-execute-command', { required: false });
@@ -817,7 +817,7 @@ async function removeCodeDeployApplication(codedeploy, applicationName) {
 
 async function remove(ecs, elbv2, ec2, codedeploy) {
   core.info("Beginning Cleanup");
-  const serviceName = `${core.getInput('service-name', { required: false })}-12`;
+  const serviceName = `${core.getInput('service-name', { required: false })}-13`;
   const cluster = core.getInput('cluster', { required: false });
   const loadBalancerArn = core.getInput('codedeploy-load-balancer-arn', { required: false });
 
