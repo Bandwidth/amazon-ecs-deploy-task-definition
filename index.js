@@ -668,24 +668,6 @@ async function getTaskDefinition(ecs, taskDefinitionArn) {
   return response.taskDefinition;
 }
 
-async function createServiceIfMissing(ecs, elbv2, ec2, serviceName, clusterName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, codeDeployBlueTargetGroupArn, serviceSubnets, mainContainerName) {
-  let serviceResponse = await describeServiceIfExists(ecs, serviceName, clusterName, false);
-
-  if (serviceResponse && serviceResponse.status !== 'ACTIVE') {
-    throw new Error(`Service is ${serviceResponse.status}`);
-  }
-
-  if (!serviceResponse) {
-    core.info("Existing service not found. Create new service.");
-    await createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, codeDeployBlueTargetGroupArn, serviceSubnets, mainContainerName);
-    serviceResponse = await describeServiceIfExists(ecs, serviceName, clusterName, true);
-  } else {
-    core.info("Using existing service");
-  }
-
-  return serviceResponse;
-}
-
 async function performCodeDeployDeployment(codedeploy, serviceName, appSpecFilePath, taskDefArn, deployRoleArn, clusterName, targetGroupsInfo, listenerArn, waitForService, waitForMinutes) {
   await createCodeDeployApplicationIfMissing(codedeploy, serviceName);
   await createCodeDeployDeploymentGroupIfMissing(codedeploy, serviceName, serviceName, deployRoleArn, clusterName, serviceName, targetGroupsInfo, listenerArn);
@@ -693,11 +675,8 @@ async function performCodeDeployDeployment(codedeploy, serviceName, appSpecFileP
 }
 
 async function createOrUpdate(ecs, elbv2, ec2, codedeploy) {
-  // Get inputs
   const taskDefinitionFile = core.getInput('task-definition', { required: true });
-
   const serviceName = `${core.getInput('service-name', { required: false })}-13`;
-
   const serviceDesiredCount = parseInt(core.getInput('service-desired-count', { required: false }));
   const serviceEnableExecuteCommandInput = core.getInput('service-enable-execute-command', { required: false });
   const serviceEnableExecuteCommand = serviceEnableExecuteCommandInput.toLowerCase() === 'true';
@@ -705,20 +684,14 @@ async function createOrUpdate(ecs, elbv2, ec2, codedeploy) {
   const servicePropagateTags = core.getInput('service-propagate-tags', { required: false });
   const serviceMinHealthyPercentage = parseInt(core.getInput('service-min-healthy-percentage', { required: false }));
   const serviceSubnets = core.getInput('service-subnets').split(',');
-
-
   const newServiceUseCodeDeployInput = core.getInput('new-service-use-codedeploy', { required: false });
   const newServiceUseCodeDeploy = newServiceUseCodeDeployInput.toLowerCase() === 'true';
-
   const codeDeployListenerArn = core.getInput('codedeploy-listener-arn', { required: false });
   const codeDeployLoadBalancerArn = core.getInput('codedeploy-load-balancer-arn', { required: false });
   const codeDeployClusterName = core.getInput('codedeploy-cluster-name', { required: false });
   const codeDeployAppSpecFile = core.getInput('codedeploy-appspec', { required : false }) || 'appspec.yaml';
-
   const codeDeployRoleArn = core.getInput('codedeploy-role-arn', { required: false });
-
   const targetGroupArns = core.getInput('target-group-arns').split(',');
-
   const cluster = core.getInput('cluster', { required: false });
   const waitForService = core.getInput('wait-for-service-stability', { required: false });
   let waitForMinutes = parseInt(core.getInput('wait-for-minutes', { required: false })) || 30;
@@ -726,32 +699,41 @@ async function createOrUpdate(ecs, elbv2, ec2, codedeploy) {
     core.warning(`Max wait time cannot be greater than ${MAX_WAIT_MINUTES} minutes. Using ${MAX_WAIT_MINUTES} instead`);
     waitForMinutes = MAX_WAIT_MINUTES;
   }
-
   const forceNewDeployInput = core.getInput('force-new-deployment', { required: false }) || 'false';
   const forceNewDeployment = forceNewDeployInput.toLowerCase() === 'true';
-
   const taskDefArn = await registerTaskDefinition(ecs, taskDefinitionFile);
-
   const mainContainerName = core.getInput('main-container-name', {required: false}) || 'web';
-
   const clusterName = cluster ? cluster : 'default';
-
   const targetGroupsInfo = await determineBlueAndGreenTargetGroup(elbv2, targetGroupArns);
 
-  const service = await createServiceIfMissing(ecs, elbv2, ec2, serviceName, clusterName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, targetGroupsInfo.blueTargetGroupInfo.TargetGroupArn, serviceSubnets, mainContainerName)
+  let existingService = await describeServiceIfExists(ecs, serviceName, clusterName, false);
+  if (existingService && existingService.status !== 'ACTIVE') {
+    throw new Error(`Service is ${existingService.status}`);
+  }
 
-  if (!service.deploymentController) {
-    // Service uses the 'ECS' deployment controller, so we can call UpdateService
+  if (!existingService) {
+    core.info("Existing service not found. Create new service.");
+    await createEcsService(ecs, elbv2, ec2, clusterName, serviceName, taskDefArn, serviceMinHealthyPercentage, serviceDesiredCount, serviceEnableExecuteCommand, serviceHealthCheckGracePeriodSeconds, servicePropagateTags, newServiceUseCodeDeploy, codeDeployLoadBalancerArn, targetGroupsInfo.blueTargetGroupInfo.TargetGroupArn, serviceSubnets, mainContainerName);
+    return;
+  }
+
+  core.info("Using existing service");
+
+  if (!existingService.deploymentController) {
     await updateEcsService(ecs, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, forceNewDeployment, serviceDesiredCount);
-  } else if (service.deploymentController.type === 'CODE_DEPLOY') {
+    return;
+  }
+
+  if (existingService.deploymentController.type === 'CODE_DEPLOY') {
     // the desired count can only be changed by updating ECS, not through CodeDeploy
-    if (service.desiredCount !== serviceDesiredCount) {
+    if (existingService.desiredCount !== serviceDesiredCount) {
       await updateEcsService(ecs, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, false, serviceDesiredCount);
     }
     await performCodeDeployDeployment(codedeploy, serviceName, codeDeployAppSpecFile, taskDefArn, codeDeployRoleArn, codeDeployClusterName, targetGroupsInfo, codeDeployListenerArn, waitForService, waitForMinutes);
-  } else {
-    throw new Error(`Unsupported deployment controller: ${service.deploymentController.type}`);
+    return;
   }
+
+  throw new Error(`Unsupported deployment controller: ${existingService.deploymentController.type}`);
 }
 
 async function revokeLoadBalancerEgressToSecurityGroup(ec2, securityGroup, securityGroupToEgressTo, fromPort, toPort) {
@@ -803,6 +785,7 @@ async function removeEcsService(ecs, clusterName, serviceName) {
   const params = {
     cluster: clusterName,
     service: serviceName,
+    force: true,
   };
   core.debug(JSON.stringify(params));
   await ecs.deleteService(params).promise();
@@ -820,13 +803,10 @@ async function remove(ecs, elbv2, ec2, codedeploy) {
   const serviceName = `${core.getInput('service-name', { required: false })}-13`;
   const cluster = core.getInput('cluster', { required: false });
   const loadBalancerArn = core.getInput('codedeploy-load-balancer-arn', { required: false });
-
   const serviceInfo = await describeServiceIfExists(ecs,  serviceName, cluster, true);
   const loadBalancerInfo = await describeLoadBalancer(elbv2, loadBalancerArn);
-
   const loadBalancerSecurityGroupId = loadBalancerInfo.SecurityGroups[0].GroupId;
   const serviceSecurityGroupId = serviceInfo.networkConfiguration.awsvpcConfiguration.securityGroups[0];
-
   const taskDefinition = await getTaskDefinition(ecs, serviceInfo.taskDefinition);
 
   await deregisterTaskDefinition(ecs, serviceInfo.taskDefinition);
