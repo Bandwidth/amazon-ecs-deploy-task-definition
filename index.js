@@ -6,7 +6,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 
 const MAX_WAIT_MINUTES = 360;  // 6 hours
-const WAIT_DEFAULT_DELAY_SEC = 15;
+const WAIT_DEFAULT_DELAY_SEC = 16;
 
 // Attributes that are returned by DescribeTaskDefinition, but are not valid RegisterTaskDefinition inputs
 const IGNORED_TASK_DEFINITION_ATTRIBUTES = [
@@ -676,7 +676,7 @@ async function performCodeDeployDeployment(codedeploy, serviceName, appSpecFileP
 
 async function createOrUpdate(ecs, elbv2, ec2, codedeploy) {
   const taskDefinitionFile = core.getInput('task-definition', { required: true });
-  const serviceName = `${core.getInput('service-name', { required: false })}-15`;
+  const serviceName = `${core.getInput('service-name', { required: false })}-16`;
   const serviceDesiredCount = parseInt(core.getInput('service-desired-count', { required: false }));
   const serviceEnableExecuteCommandInput = core.getInput('service-enable-execute-command', { required: false });
   const serviceEnableExecuteCommand = serviceEnableExecuteCommandInput.toLowerCase() === 'true';
@@ -800,7 +800,7 @@ async function removeCodeDeployApplication(codedeploy, applicationName) {
 
 async function remove(ecs, elbv2, ec2, codedeploy) {
   core.info("Beginning Cleanup");
-  const serviceName = `${core.getInput('service-name', { required: false })}-15`;
+  const serviceName = `${core.getInput('service-name', { required: false })}-16`;
   const cluster = core.getInput('cluster', { required: false });
   const loadBalancerArn = core.getInput('codedeploy-load-balancer-arn', { required: false });
   const serviceInfo = await describeServiceIfExists(ecs,  serviceName, cluster, true);
