@@ -7,8 +7,30 @@ inputs:
   task-definition:
     description: 'The path to the ECS task definition file to register'
     required: true
-  service:
-    description: 'The name of the ECS service to deploy to. The action will only register the task definition if no service is given.'
+  service-name:
+    description: 'The name of the ECS service to update/create. The action will only register the task definition if no service is given.'
+    required: false
+  service-desired-count:
+    description: 'The number of tasks to create/update the service with'
+    required: false
+    default: '3'
+  service-enable-execute-command:
+    description: 'Whether to enable ECS exec on the service'
+    required: false
+    default: 'true'
+  service-health-check-grace-period-seconds:
+    description: 'The time given to a new task before health checks begin'
+    required: false
+  service-propagate-tags:
+    description: 'Where tags should be propagated from to the tasks'
+    required: false
+    default: 'TASK_DEFINITION'
+  service-min-healthy-percentage:
+    description: 'The minimum number of tasks that must remain healthy during a deployment'
+    required: false
+    default: '50'
+  service-subnets:
+    description: 'The subnets to use for a new service'
     required: false
   cluster:
     description: "The name of the ECS service's cluster.  Will default to the 'default' cluster"
@@ -19,6 +41,10 @@ inputs:
   wait-for-minutes:
     description: 'How long to wait for the ECS service to reach stable state, in minutes (default: 30 minutes, max: 6 hours). For CodeDeploy deployments, any wait time configured in the CodeDeploy deployment group will be added to this value.'
     required: false
+  new-service-use-codedeploy:
+    description: 'Whether CodeDeploy should be used as the deployment controller. Defaults to ECS'
+    required: false
+    default: 'false'
   codedeploy-appspec:
     description: "The path to the AWS CodeDeploy AppSpec file, if the ECS service uses the CODE_DEPLOY deployment controller. Will default to 'appspec.yaml'."
     required: false
@@ -31,6 +57,12 @@ inputs:
   codedeploy-deployment-description:
     description: "A description of the deployment, if the ECS service uses the CODE_DEPLOY deployment controller."
     required: false
+  codedeploy-target-group-arn:
+    description: "ARN of the target group"
+    required: false
+  codedeploy-load-balancer-arn:
+    description: "The ARN of the load balancer"
+    required: false
   force-new-deployment:
     description: 'Whether to force a new deployment of the service. Valid value is "true". Will default to not force a new deployment.'
     required: false
@@ -40,5 +72,5 @@ outputs:
   codedeploy-deployment-id:
     description: 'The deployment ID of the CodeDeploy deployment (if the ECS service uses the CODE_DEPLOY deployment controller'
 runs:
-  using: 'node12'
+  using: 'node16'
   main: 'dist/index.js'
