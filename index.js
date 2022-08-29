@@ -250,9 +250,24 @@ async function updateEcsService(ecs, clusterName, service, taskDefArn, waitForSe
     desiredCount: desiredCount,
   }).promise();
 
-  const consoleHostname = aws.config.region.startsWith('cn') ? 'console.amazonaws.cn' : 'console.aws.amazon.com';
+  core.info(`Deployment started. Watch this deployment's progress in the Amazon ECS console: https://console.aws.amazon.com/ecs/home?region=${aws.config.region}#/clusters/${clusterName}/services/${service}/events`);
 
-  core.info(`Deployment started. Watch this deployment's progress in the Amazon ECS console: https://${consoleHostname}/ecs/home?region=${aws.config.region}#/clusters/${clusterName}/services/${service}/events`);
+  if (waitForService && waitForService.toLowerCase() === 'true') {
+    await waitForServiceStability(ecs, service, clusterName, waitForMinutes);
+  } else {
+    core.debug('Not waiting for the service to become stable');
+  }
+}
+
+async function updateEcsServiceDesiredCountOnly(ecs, clusterName, service, waitForService, waitForMinutes, desiredCount) {
+  core.debug('Updating the code-deploy enabled service');
+  await ecs.updateService({
+    cluster: clusterName,
+    service: service,
+    desiredCount: desiredCount,
+  }).promise();
+
+  core.info(`Deployment started. Watch this deployment's progress in the Amazon ECS console: https://console.aws.amazon.com/ecs/home?region=${aws.config.region}#/clusters/${clusterName}/services/${service}/events`);
 
   if (waitForService && waitForService.toLowerCase() === 'true') {
     await waitForServiceStability(ecs, service, clusterName, waitForMinutes);
@@ -727,7 +742,7 @@ async function createOrUpdate(ecs, elbv2, ec2, codedeploy) {
   if (existingService.deploymentController.type === 'CODE_DEPLOY') {
     // the desired count can only be changed by updating ECS, not through CodeDeploy
     if (existingService.desiredCount !== serviceDesiredCount) {
-      await updateEcsService(ecs, clusterName, serviceName, taskDefArn, waitForService, waitForMinutes, false, serviceDesiredCount);
+      await updateEcsServiceDesiredCountOnly(ecs, clusterName, serviceName, waitForService, waitForMinutes, serviceDesiredCount);
     }
     await performCodeDeployDeployment(codedeploy, serviceName, codeDeployAppSpecFile, taskDefArn, codeDeployRoleArn, codeDeployClusterName, targetGroupsInfo, codeDeployListenerArn, waitForService, waitForMinutes);
     return;
