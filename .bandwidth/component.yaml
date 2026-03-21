@@ -1,0 +1,14 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  schemaVersion: v1.0.0
+  name: amazon-ecs-deploy-task-definition
+  description: Registers an Amazon ECS task definition and deploys it to an ECS service.
+  annotations:
+    github.com/project-slug: Bandwidth/amazon-ecs-deploy-task-definition
+    organization: BW
+    costCenter: Development - Software Infra
+spec:
+  type: GitHub Action
+  owner: github/band-swi
+  lifecycle: Available
