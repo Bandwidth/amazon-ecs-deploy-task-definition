@@ -1,0 +1,11 @@
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  schemaVersion: v1.0.0
+  name: amazon-ecs-deploy-task-definition-location
+  description: Links to additional entities in the amazon-ecs-deploy-task-definition repository.
+  annotations:
+    github.com/project-slug: Bandwidth/amazon-ecs-deploy-task-definition
+spec:
+  targets:
+    - ./component.yaml
